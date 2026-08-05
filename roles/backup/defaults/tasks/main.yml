@@ -1,0 +1,81 @@
+# Задачи роли backup — автоматические бэкапы БД с ротацией и отказоустойчивостью.
+# Скрипт и creds-файл раскладываются, ставится cron, затем тестовый прогон в block/rescue/always.
+# Пароли из vault попадают ТОЛЬКО в creds-файл (0600, no_log), в тексте скрипта их нет.
+
+# --- Каталог для архивов бэкапов (путь и ротация — из group_vars/db.yml) ---
+- name: Создать каталог для бэкапов
+  ansible.builtin.file:
+    path: "{{ db_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  tags: backup
+
+# --- Creds-файл с паролями из vault. mode 0600 = читает только root; no_log: true =
+#     пароли НЕ попадут в вывод и в diff ansible. Путь ДОЛЖЕН совпадать с CREDS в db_backup.sh.j2. ---
+- name: Развернуть creds-файл бэкапа (пароли из vault)
+  ansible.builtin.template:
+    src: db_backup_creds.j2
+    dest: /root/.db_backup_creds
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  tags: [backup, security]
+
+# --- Скрипт бэкапа из шаблона. mode 0755 = исполняемый. Паролей в скрипте нет (они в creds). ---
+- name: Развернуть скрипт бэкапа
+  ansible.builtin.template:
+    src: db_backup.sh.j2
+    dest: "{{ backup_script_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: backup
+
+# --- Cron: ежедневный запуск скрипта от root в заданное время.
+#     stderr докидываем в лог бэкапа, чтобы ошибки самого bash тоже фиксировались. ---
+- name: Поставить cron на ежедневный бэкап
+  ansible.builtin.cron:
+    name: "ansible db_backup"
+    minute: "{{ backup_cron_minute }}"
+    hour: "{{ backup_cron_hour }}"
+    user: root
+    job: "{{ backup_script_path }} 2>>{{ backup_log_path }}"
+  tags: backup
+
+# ===== Тестовый прогон при деплое: block / rescue / always =====
+# Зачем: cron мы поставили, но надо УБЕДИТЬСЯ, что дамп реально снимается СЕЙЧАС,
+# а не узнать через неделю, что он падает. Ошибку ловим в rescue и НЕ роняем плейбук.
+
+- name: Тестовый прогон скрипта бэкапа (проверка работоспособности)
+  block:
+    # Запускаем скрипт один раз. register сохраняет результат (включая rc) даже при ошибке.
+    # changed_when: rc==0 честно отражает факт — успешный дамп создаёт новый архив.
+    - name: Выполнить скрипт бэкапа
+      ansible.builtin.command: "{{ backup_script_path }}"
+      register: backup_test
+      changed_when: backup_test.rc == 0
+
+  rescue:
+    # Сюда попадаем, если задача в block упала (rc != 0). Пишем в лог...
+    - name: rescue — зафиксировать провал бэкапа в лог
+      ansible.builtin.lineinfile:
+        path: "{{ backup_log_path }}"
+        create: yes
+        mode: "0644"
+        line: "[ANSIBLE] rescue: тестовый прогон бэкапа ЗАВЕРШИЛСЯ ОШИБКОЙ (rc={{ backup_test.rc | default('n/a') }}). Плейбук продолжен."
+
+    # ...и выводим алерт-заглушку. ВАЖНО: здесь НЕТ fail, поэтому плейбук НЕ падает и идёт дальше.
+    # В проде эту задачу заменяют на отправку уведомления (mail / telegram / PagerDuty).
+    - name: rescue — алерт о провале бэкапа (заглушка под уведомление)
+      ansible.builtin.debug:
+        msg: "ВНИМАНИЕ: тестовый бэкап не снялся. См. {{ backup_log_path }}. В проде здесь отправка алерта (mail/telegram)."
+
+  always:
+    # Выполняется ВСЕГДА — и при успехе block, и после rescue. Фиксируем факт завершения попытки.
+    - name: always — отметить завершение блока тестового бэкапа
+      ansible.builtin.debug:
+        msg: "Блок тестового бэкапа отработал (успех либо rescue). Лог выполнения: {{ backup_log_path }}"
+  tags: backup

@@ -1,0 +1,72 @@
+# Задачи роли nginx — веб-часть стека LEMP (nginx + PHP-FPM).
+# PHP ставится и запускается только при nginx_enable_php: true (иначе — чистая статика).
+
+# --- nginx ставится всегда ---
+- name: Установить nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  tags: web
+
+# --- PHP-FPM и модуль mysql для PHP — только если включена обработка PHP ---
+- name: Установить PHP-FPM и php-mysql
+  ansible.builtin.apt:
+    name:
+      - "php{{ php_fpm_version }}-fpm"
+      - "php{{ php_fpm_version }}-mysql"
+    state: present
+  when: nginx_enable_php | bool
+  tags: web
+
+# --- Конфиг сайта из шаблона. notify перезапустит nginx ТОЛЬКО если файл изменился.
+#     validate не используем: nginx -t проверяет весь конфиг, а не один site-файл. ---
+- name: Развернуть конфиг сайта nginx из шаблона
+  ansible.builtin.template:
+    src: nginx_site.conf.j2
+    dest: /etc/nginx/sites-available/default
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart nginx
+  tags: web
+
+# --- Симлинк в sites-enabled (идемпотентно; гарантирует, что сайт включён) ---
+- name: Включить сайт (симлинк sites-available -> sites-enabled)
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/default
+    dest: /etc/nginx/sites-enabled/default
+    state: link
+  notify: restart nginx
+  tags: web
+
+# --- nginx запущен и стартует при загрузке ---
+- name: nginx включён и запущен
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
+  tags: web
+
+# --- PHP-FPM запущен и стартует при загрузке (только если PHP включён) ---
+- name: PHP-FPM включён и запущен
+  ansible.builtin.service:
+    name: "php{{ php_fpm_version }}-fpm"
+    state: started
+    enabled: yes
+  when: nginx_enable_php | bool
+  tags: web
+- name: Развернуть статус-страницу LEMP (index.php)
+  ansible.builtin.copy:
+    dest: /var/www/html/index.php
+    mode: "0644"
+    content: |
+      <?php
+      header('Content-Type: application/json; charset=utf-8');
+      echo json_encode(['stack' => 'LEMP', 'php' => PHP_VERSION, 'host' => gethostname(), 'time' => date('c')], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+- name: Развернуть статичный fallback (index.html)
+  ansible.builtin.copy:
+    dest: /var/www/html/index.html
+    mode: "0644"
+    content: |
+      {"stack": "LEMP", "page": "static"}

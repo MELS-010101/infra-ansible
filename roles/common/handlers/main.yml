@@ -1,0 +1,9 @@
+# Обработчики роли common. Вызываются через notify из tasks/main.yml
+# и выполняются в конце play ТОЛЬКО если соответствующая задача пометила changed.
+
+# Перезапуск SSH после изменения sshd_config.
+# Если шаблон не менял файл — handler не запустится и ssh не дёрнется (идемпотентность).
+- name: restart sshd
+  ansible.builtin.service:
+    name: ssh
+    state: restarted

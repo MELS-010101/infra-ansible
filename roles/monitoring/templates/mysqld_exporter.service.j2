@@ -1,0 +1,25 @@
+# {{ ansible_managed }}
+# Файл управляется Ansible — правки руками будут перезаписаны при следующем прогоне.
+# Пользователь и порт — из roles/monitoring/defaults/main.yml.
+# Пароль для входа в MariaDB здесь НЕ указан: он лежит в env-файле /etc/default/mysqld_exporter
+# (права 0600, создаётся отдельным шаблоном), чтобы не светиться в командной строке процесса.
+
+[Unit]
+Description=Prometheus MySQLd Exporter (метрики СУБД)
+After=network.target mariadb.service
+# Экспортер бесполезен без работающей MariaDB — ждём её
+Requires=mariadb.service
+
+[Service]
+# Запуск от непривилегированного системного пользователя
+User={{ mysqld_exporter_user }}
+Group={{ mysqld_exporter_user }}
+Type=simple
+# Подтягиваем переменную DATA_SOURCE_NAME (с паролем) из защищённого файла
+EnvironmentFile=/etc/default/mysqld_exporter
+# Бинарник лежит в /usr/local/bin (туда его кладёт задача unarchive в tasks)
+ExecStart=/usr/local/bin/mysqld_exporter --web.listen-address=:{{ mysqld_exporter_port }}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+---
+mysql_backup_user: backup
+mysql_backup_password: "{{ vault_mysql_backup_password | default('backup_secret_2024') }}"
+mysql_backup_dir: /var/backups/mysql
+mysql_backup_cron_minute: "30"
+mysql_backup_cron_hour: "2"

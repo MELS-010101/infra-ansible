@@ -1,0 +1,37 @@
+# Боевой деплой приложения (без первичной подготовки ОС и без бэкапов).
+# Разница с site.yml: baseline делают ОДИН раз при вводе сервера в строй,
+# backup гоняют отдельным плейбуком по cron — а deploy крутят при каждом релизе.
+# Именно такое разделение и показывает работодателю понимание жизненного цикла сервера.
+# become: yes = задачи идут через sudo.
+
+# Docker-рантайм на всех хостах
+- name: Docker runtime
+  hosts: all
+  become: yes
+  tags: docker
+  roles:
+    - docker
+
+# Веб-часть (nginx + php-fpm) — только на группе [web]
+- name: Web stack
+  hosts: web
+  become: yes
+  tags: web
+  roles:
+    - nginx
+
+# База данных — только на группе [db]
+- name: Database
+  hosts: db
+  become: yes
+  tags: db
+  roles:
+    - db
+
+# Наблюдаемость (роль сама ограничит экспортер СУБД через when на группе db)
+- name: Observability
+  hosts: all
+  become: yes
+  tags: monitoring
+  roles:
+    - monitoring

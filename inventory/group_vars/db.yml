@@ -1,0 +1,45 @@
+# Переменные группы [db] — для всех хостов из секции [db]
+
+# Адрес прослушки MariaDB. 127.0.0.1 = только локально (безопасность)
+mariadb_bind_address: "127.0.0.1"
+
+# Порт MariaDB
+mariadb_port: 3306
+
+# Имя прикладной базы (её создаст роль db)
+app_db_name: app_db
+
+# Хост, с которого разрешён вход app_user (в проде = IP веб-сервера; в демо = localhost)
+db_app_user_host: "localhost"
+
+# Куда складывать дампы БД
+db_backup_dir: /var/backups/mysql
+
+# Ротация: сколько дней хранить старые бэкапы
+db_backup_keep_days: 7
+
+# Путь к сокету MariaDB — через него root заходит БЕЗ пароля (login_plugin: unix_socket)
+mariadb_socket: /run/mysqld/mysqld.sock
+
+# Пул пользователей СУБД. Роль создаст их циклом (loop).
+# Пароли — из vault.yml; no_log в роли не даст им попасть в вывод/логи.
+# priv — права в формате модуля: "база.таблица:ПРАВИЛА", несколько записей через "/".
+# Права аддитивны: чего НЕ перечислили — того у юзера нет (DROP/DELETE у backup намеренно нет).
+mariadb_users:
+  # Прикладной юзер: только операции с данными, только в своей базе, только со своего хоста
+  - name: app_user
+    password: "{{ vault_db_app_user_password }}"
+    host: "{{ db_app_user_host }}"
+    priv: "{{ app_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER"
+
+  # Бэкап-юзер: только чтение и блокировка для дампа; DROP/DELETE/INSERT запрещены (не выданы)
+  - name: backup_user
+    password: "{{ vault_db_backup_user_password }}"
+    host: "localhost"
+    priv: "*.*:SELECT,LOCK TABLES,SHOW VIEW,TRIGGER"
+
+  # Юзер для mysqld_exporter: мониторинг без доступа к данным приложений
+  - name: exporter
+    password: "{{ vault_db_exporter_password }}"
+    host: "localhost"
+    priv: "*.*:PROCESS,REPLICATION CLIENT/performance_schema.*:SELECT"

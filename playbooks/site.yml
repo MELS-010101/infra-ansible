@@ -1,0 +1,53 @@
+# Оркестратор полного прогона. Запуск: ansible-playbook playbooks/site.yml
+# Сам по себе задач не содержит — только собирает роли по порядку.
+# Порядок важен: common (база ОС) -> docker (рантайм) -> nginx/db (приложения)
+#              -> monitoring (наблюдение за тем, что уже стоит) -> backup (обслуживание).
+# become: yes = все задачи ниже идут через sudo (нужно для установки пакетов и правки /etc).
+
+# 1) Базовая подготовка ОС на ВСЕХ хостах: апдейты, юзер, SSH, UFW
+- name: Server baseline
+  hosts: all
+  become: yes
+  tags: baseline
+  roles:
+    - common
+
+# 2a) Docker-рантайм на ВСЕХ хостах (движок + SDK; контейнеры в нём — по желанию)
+- name: Docker runtime
+  hosts: all
+  become: yes
+  tags: docker
+  roles:
+    - docker
+
+# 2b) Веб-часть LEMP (nginx + php-fpm) — только на группе [web]
+- name: Web stack
+  hosts: web
+  become: yes
+  tags: web
+  roles:
+    - nginx
+
+# 2c) База данных (MariaDB + пользователи по принципу минимальных привилегий) — только на [db]
+- name: Database
+  hosts: db
+  become: yes
+  tags: db
+  roles:
+    - db
+
+# 3) Наблюдаемость: Node Exporter на всех + экспортер СУБД на [db] (роль сама ограничит через when)
+- name: Observability
+  hosts: all
+  become: yes
+  tags: monitoring
+  roles:
+    - monitoring
+
+# 4) Обслуживание: бэкапы с ротацией и отказоустойчивостью (block/rescue/always)
+- name: Maintenance
+  hosts: all
+  become: yes
+  tags: backup
+  roles:
+    - backup

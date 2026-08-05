@@ -1,0 +1,11 @@
+---
+- name: reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# Имя прежнее (на него ссылаются notify), сервис теперь пакетный
+- name: restart mysqld exporter
+  ansible.builtin.systemd:
+    name: prometheus-mysqld-exporter
+    state: restarted
+    daemon_reload: true

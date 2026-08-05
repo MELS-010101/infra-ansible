@@ -1,0 +1,125 @@
+---
+# Роль db: СУБД (mysql или mariadb — автоопределение), пользователи
+# и Prometheus MySQL Exporter (нативный пакет, systemd, порт 9101).
+# Docker для экспортера НЕ используем: Docker Hub недоступен из этой сети.
+
+- name: Проверить, установлен ли mariadb-server
+  ansible.builtin.shell: dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null || true
+  register: mariadb_pkg
+  changed_when: false
+
+- name: Выбрать flavor СУБД
+  ansible.builtin.set_fact:
+    db_flavor: "{{ 'mariadb' if 'install ok installed' in mariadb_pkg.stdout else 'mysql' }}"
+
+# env-файл с DSN создаём ДО установки пакета, чтобы сервис стартовал уже с DSN
+- name: Создать env-файл с DSN для экспортера
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-mysqld-exporter
+    mode: "0640"
+    content: |
+      # Ansible managed
+      # urlencode защищает DSN от спецсимволов пароля (#, ! и т.п.)
+      DATA_SOURCE_NAME={{ mysql_exporter_user }}:{{ mysql_exporter_password | urlencode }}@tcp(127.0.0.1:3306)/
+  notify: restart mysqld exporter
+
+- name: Установить СУБД, pymysql и Prometheus MySQL Exporter
+  ansible.builtin.apt:
+    name: "{{ (['mariadb-server', 'mariadb-client'] if db_flavor == 'mariadb' else ['mysql-server', 'mysql-client']) + ['python3-pymysql', 'prometheus-mysqld-exporter'] }}"
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Сервис СУБД запущен и включён
+  ansible.builtin.systemd:
+    name: "{{ db_flavor }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Дождаться сокета СУБД
+  ansible.builtin.wait_for:
+    path: "{{ mysql_socket }}"
+    timeout: 30
+
+- name: Создать пользователя СУБД для Prometheus MySQL Exporter
+  community.mysql.mysql_user:
+    name: "{{ mysql_exporter_user }}"
+    password: "{{ mysql_exporter_password }}"
+    host: "{{ item }}"
+    priv: "*.*:PROCESS,REPLICATION CLIENT,SELECT"
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    check_implicit_admin: true
+    state: present
+  loop:
+    - localhost
+    - 127.0.0.1
+  notify: restart mysqld exporter
+
+- name: Создать пользователя СУБД для резервных копий
+  community.mysql.mysql_user:
+    name: "{{ mysql_backup_user }}"
+    password: "{{ mysql_backup_password }}"
+    host: "{{ item }}"
+    priv: "*.*:ALL"
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    check_implicit_admin: true
+    state: present
+  loop:
+    - localhost
+    - 127.0.0.1
+
+# --- Чистка старой контейнерной схемы ---
+
+- name: Удалить старый контейнер mysqld_exporter (если остался)
+  ansible.builtin.command: docker rm -f mysqld_exporter
+  register: old_container
+  changed_when: old_container.rc == 0
+  failed_when: false
+
+- name: Остановить и отключить старый unit mysqld_exporter (если был)
+  ansible.builtin.systemd:
+    name: mysqld_exporter
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Удалить старый кастомный unit mysqld_exporter
+  ansible.builtin.file:
+    path: /etc/systemd/system/mysqld_exporter.service
+    state: absent
+  notify: reload systemd
+
+# --- Настройка пакетного сервиса: порт 9101 через drop-in ---
+
+- name: Каталог drop-in для prometheus-mysqld-exporter
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-mysqld-exporter.service.d
+    state: directory
+    mode: "0755"
+
+- name: "Drop-in: порт 9101 и env-файл с DSN"
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-mysqld-exporter.service.d/override.conf
+    mode: "0644"
+    content: |
+      # Ansible managed
+      [Service]
+      EnvironmentFile=-/etc/default/prometheus-mysqld-exporter
+      ExecStart=
+      ExecStart=/usr/bin/prometheus-mysqld-exporter --web.listen-address=:{{ mysql_exporter_port }}
+  notify:
+    - reload systemd
+    - restart mysqld exporter
+
+- name: Сервис prometheus-mysqld-exporter запущен и включён
+  ansible.builtin.systemd:
+    name: prometheus-mysqld-exporter
+    state: started
+    enabled: true
+    daemon_reload: true

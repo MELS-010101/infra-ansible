@@ -1,0 +1,117 @@
+# Задачи роли db — MariaDB + принцип минимальных привилегий + hardening.
+# Вход во все модули community.mysql — через сокет БЕЗ пароля (become даёт root,
+# а root в MariaDB на Ubuntu аутентифицируется плагином unix_socket).
+# Параметр модуля для такого входа — login_unix_socket (параметра login_plugin
+# в community.mysql нет; unix_socket здесь = способ входа без пароля через сокет).
+
+# --- Установка сервера и python-драйвера (pymysql нужен модулям community.mysql) ---
+- name: Установить MariaDB и python3-pymysql
+  ansible.builtin.apt:
+    name:
+      - mariadb-server
+      - python3-pymysql
+    state: present
+  tags: db
+
+# --- Конфиг из шаблона. notify перезапустит mariadb ТОЛЬКО если файл изменился. ---
+- name: Развернуть my.cnf из шаблона
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: /etc/mysql/mariadb.conf.d/99-ansible.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart mariadb
+  tags: db
+
+# --- Сервис запущен и стартует при загрузке ---
+- name: MariaDB включена и запущена
+  ansible.builtin.service:
+    name: mariadb
+    state: started
+    enabled: yes
+  tags: db
+
+# ===== Аналог mysql_secure_installation, реализованный модулями =====
+# Каждый шаг управляется флагом из defaults/main.yml и идемпотентен:
+# changed помечается только если реально что-то удалили (rowcount > 0).
+
+# 1) Удалить анонимных пользователей (пустое имя в mysql.user)
+- name: Secure — удалить анонимных пользователей
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    query: "DELETE FROM mysql.user WHERE User=''"
+  register: secure_anon
+  changed_when: secure_anon.rowcount | default(0) > 0
+  when: mariadb_secure_remove_anon | bool
+  tags: [db, security]
+
+# 2a) Удалить тестовую базу данных
+- name: Secure — удалить тестовую базу данных
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mariadb_socket }}"
+    name: test
+    state: absent
+  when: mariadb_secure_remove_test_db | bool
+  tags: [db, security]
+
+# 2b) Зачистить остатки прав на test / test_% в mysql.db
+- name: Secure — удалить права на тестовую базу
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    query: "DELETE FROM mysql.db WHERE Db='test' OR Db LIKE 'test\\_%'"
+  register: secure_test_privs
+  changed_when: secure_test_privs.rowcount | default(0) > 0
+  when: mariadb_secure_remove_test_db | bool
+  tags: [db, security]
+
+# 3) Запретить удалённый root: убрать root со всех хостов кроме локальных
+- name: Secure — запретить удалённый вход под root
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    query: "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost','127.0.0.1','::1')"
+  register: secure_root_remote
+  changed_when: secure_root_remote.rowcount | default(0) > 0
+  when: mariadb_secure_disallow_root_remote | bool
+  tags: [db, security]
+
+# Применить изменения grant-таблиц после ручных правок (сам по себе систему не меняет)
+- name: Secure — перечитать таблицы привилегий
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mariadb_socket }}"
+    query: "FLUSH PRIVILEGES"
+  changed_when: false
+  when: >
+    (mariadb_secure_remove_anon | bool) or
+    (mariadb_secure_remove_test_db | bool) or
+    (mariadb_secure_disallow_root_remote | bool)
+  tags: [db, security]
+
+# ===== Прикладная база и пул пользователей =====
+
+# Создать базу приложения (идемпотентно: если есть — не трогает)
+- name: Создать прикладную базу данных
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mariadb_socket }}"
+    name: "{{ app_db_name }}"
+    encoding: "{{ app_db_charset }}"
+    collation: "{{ app_db_collation }}"
+    state: present
+  tags: db
+
+# Создать пул пользователей СУБД ОДНИМ циклом (loop по списку из group_vars/db.yml).
+# no_log: true — пароли из vault НЕ попадут в вывод терминала и в логи (требование CI/CD).
+# Права у каждого юзера свои (принцип минимальных привилегий) — берутся из элемента цикла.
+- name: Создать пользователей СУБД с разделением прав
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ mariadb_socket }}"
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    host: "{{ item.host }}"
+    priv: "{{ item.priv }}"
+    state: present
+  loop: "{{ mariadb_users }}"
+  loop_control:
+    label: "{{ item.name }}"   # в выводе цикла светится только имя юзера, НЕ пароль
+  no_log: true
+  tags: db

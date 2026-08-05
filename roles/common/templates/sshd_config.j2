@@ -1,0 +1,22 @@
+# {{ ansible_managed }}
+# Файл управляется Ansible — правки руками будут перезаписаны при следующем прогоне.
+# Значения ниже подставляются из roles/common/defaults/main.yml (или group_vars).
+
+# Порт SSH (по умолчанию 22; смена порта — часть hardening)
+Port {{ ssh_port }}
+
+# Запрет входа под root напрямую — работаем только через sudo от обычного юзера
+PermitRootLogin {{ ssh_permit_root_login }}
+
+# Вход только по ключам, парольную аутентификацию отключаем
+PasswordAuthentication {{ ssh_password_auth }}
+PubkeyAuthentication yes
+
+# Защита от брута и от зависших сессий
+MaxAuthTries {{ ssh_max_auth_tries }}
+ClientAliveInterval {{ ssh_client_alive_interval }}
+ClientAliveCountMax {{ ssh_client_alive_count_max }}
+
+# Мелочи безопасности: без X11-форвардинга, без пустых паролей
+X11Forwarding no
+PermitEmptyPasswords no

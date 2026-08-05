@@ -1,0 +1,23 @@
+infra-ansible/
+├── ansible.cfg                 ✅
+├── requirements.yml            ⬜   # коллекции community.mysql, community.docker
+├── README.md                   ⬜
+├── .gitignore                  ⬜
+├── .vault_pass                 ⬜   # пароль от vault, локально, НЕ в git
+├── inventory/
+│   ├── inventory.ini           ✅   # группы [web] [db] оставляем как есть
+│   └── group_vars/
+│       ├── all.yml             ✅
+│       ├── web.yml             ✅   # переменные для роли nginx
+│       ├── db.yml              🔄   # ПЕРЕЗАПИСАТЬ: теперь 3 пользователя
+│       └── vault.yml           ⬜   # 3 пароля → зашифровать
+├── playbooks/
+│   ├── site.yml                ⬜   # всё по порядку
+│   └── deploy.yml              ⬜   # «боевой» деплой без baseline/backup
+└── roles/
+    ├── common/   {defaults,tasks,handlers,templates}   ⬜  # = бывший baseline, на all
+    ├── nginx/    {...}                                 ⬜  # применяется к [web]
+    ├── db/       {...}                                 ⬜  # 3 юзера + secure-эквивалент
+    ├── monitoring/ {...}                               ⬜  # node_exporter + mysqld_exporter
+    ├── backup/   {...}                                 ⬜  # block/rescue/always
+    └── docker/   {...}                                 ⬜  # сверх списка п.1 — требует п.«Configuration»

@@ -1,0 +1,36 @@
+# Значения по умолчанию роли docker. Переопределяются через group_vars/host_vars.
+# Ставим Docker Engine из ОФИЦИАЛЬНОГО репозитория Docker (не docker.io из Ubuntu и не snap):
+# там актуальные версии и корректные зависимости. Переменные ниже задают ключ и адрес репы.
+
+# Адрес GPG-ключа репозитория Docker (им подписаны пакеты)
+docker_apt_key_url: "https://download.docker.com/linux/ubuntu/gpg"
+
+# Шаблон адреса репозитория. {{ ansible_distribution_release }} — fact (jammy/noble и т.п.),
+# подставится ansible сам, поэтому роль работает на разных версиях Ubuntu без правок.
+docker_apt_repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+
+# Пакеты для установки. compose-plugin = docker compose v2 как подкоманда (без отдельного бинарника).
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Добавить ли указанных пользователей в группу docker (чтобы docker работал без sudo).
+# По умолчанию — админ из group_vars/all.yml. Список, можно добавить несколько имён.
+docker_users:
+  - "{{ admin_user }}"
+
+# --- Настройки демона (попадут в /etc/docker/daemon.json через шаблон).
+#     Ротация логов обязательна в проде: без неё логи контейнеров забивают диск. ---
+
+# Драйвер логирования
+docker_log_driver: json-file
+# Максимальный размер одного файла логов контейнера
+docker_log_max_size: "50m"
+# Сколько файлов логов хранить (ротация)
+docker_log_max_file: "3"
+
+# Драйвер хранения образов/контейнеров (overlay2 — стандарт на современных ядрах)
+docker_storage_driver: overlay2

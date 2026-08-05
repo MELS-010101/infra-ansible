@@ -1,0 +1,114 @@
+---
+# Роль backup: резервные копии СУБД через mysqldump и cron.
+# ПАКЕТЫ СУБД СТАВИТ ТОЛЬКО РОЛЬ db! Здесь клиент ставится лишь как fallback,
+# строго того же flavor, что и сервер — иначе dpkg-конфликт "trying to overwrite".
+
+- name: Установить cron
+  ansible.builtin.apt:
+    name: cron
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Сервис cron запущен и включён
+  ansible.builtin.systemd:
+    name: cron
+    state: started
+    enabled: true
+
+- name: Проверить, есть ли mysqldump в системе
+  ansible.builtin.command: which mysqldump
+  register: mysqldump_check
+  changed_when: false
+  failed_when: false
+
+- name: Проверить, установлен ли mariadb-server
+  ansible.builtin.shell: dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null || true
+  register: mariadb_pkg
+  changed_when: false
+
+# Fallback: ставим клиент того же flavor, что и сервер, только если дампера нет
+- name: Установить клиент СУБД (fallback, flavor-aware)
+  ansible.builtin.apt:
+    name: "{{ 'mariadb-client' if 'install ok installed' in mariadb_pkg.stdout else 'mysql-client' }}"
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: mysqldump_check.rc != 0
+
+- name: Создать каталог резервных копий MySQL
+  ansible.builtin.file:
+    path: "{{ mysql_backup_dir }}"
+    state: directory
+    mode: "0750"
+
+# Пароль в кавычках: иначе # в пароле из vault обрежет значение как комментарий
+- name: Создать файл учётных данных MySQL для бэкапов
+  ansible.builtin.copy:
+    dest: /etc/mysql-backup.cnf
+    mode: "0600"
+    content: |
+      # Ansible managed
+      [client]
+      user={{ mysql_backup_user }}
+      password="{{ mysql_backup_password }}"
+
+- name: Создать скрипт резервного копирования MySQL
+  ansible.builtin.copy:
+    dest: /usr/local/bin/mysql-backup.sh
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Бэкап всех баз в {{ mysql_backup_dir }}
+      set -euo pipefail
+
+      BACKUP_DIR="{{ mysql_backup_dir }}"
+      STAMP="$(date +%Y%m%d-%H%M%S)"
+      RETENTION_DAYS="7"
+      DUMP_FILE="${BACKUP_DIR}/all-${STAMP}.sql"
+      MARKER_FILE="${BACKUP_DIR}/.initial_done"
+
+      # Ждём доступность СУБД, но не бесконечно
+      for i in {1..30}; do
+        if /usr/bin/mysqladmin --defaults-extra-file=/etc/mysql-backup.cnf ping >/dev/null 2>&1; then
+          break
+        fi
+
+        sleep 2
+
+        if [ "$i" -eq 30 ]; then
+          echo "СУБД недоступна, бэкап не выполнен" >&2
+          exit 1
+        fi
+      done
+
+      /usr/bin/mysqldump \
+        --defaults-extra-file=/etc/mysql-backup.cnf \
+        --all-databases \
+        --single-transaction \
+        --quick \
+        --routines \
+        --triggers \
+        --events > "${DUMP_FILE}"
+
+      gzip "${DUMP_FILE}"
+
+      # Ротация: старше 7 дней удаляем
+      find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'all-*.sql.gz' -mtime +"${RETENTION_DAYS}" -delete
+
+      touch "${MARKER_FILE}"
+
+- name: "Cron: ежедневный бэкап MySQL"
+  ansible.builtin.cron:
+    name: mysql backup daily
+    user: root
+    minute: "{{ mysql_backup_cron_minute }}"
+    hour: "{{ mysql_backup_cron_hour }}"
+    job: "/usr/local/bin/mysql-backup.sh"
+
+- name: Выполнить первый бэкап
+  ansible.builtin.command: /usr/local/bin/mysql-backup.sh
+  args:
+    creates: "{{ mysql_backup_dir }}/.initial_done"

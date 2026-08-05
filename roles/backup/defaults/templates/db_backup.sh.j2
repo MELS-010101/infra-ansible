@@ -1,0 +1,88 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Файл управляется Ansible — правки руками будут перезаписаны при следующем прогоне.
+# Скрипт полного бэкапа БД: дамп -> gzip -> (опционально) шифрование openssl -> ротация.
+# ВАЖНО по безопасности: паролей в этом файле НЕТ. Они лежат в creds-файле (права 0600),
+# который создаёт отдельный шаблон; скрипт читает его через source в рантайме.
+
+set -euo pipefail   # выход по ошибке, по необъявленной переменной и по ошибке в пайпе
+
+# --- Настройки, подставленные ansible из переменных роли ---
+LOG="{{ backup_log_path }}"
+CREDS="/root/.db_backup_creds"          # защищённый файл с паролями (0600)
+DB_USER="{{ backup_db_user }}"
+DB_SOCKET="{{ mariadb_socket }}"        # подключение через сокет (host='localhost' у backup_user)
+DB_NAME="{{ backup_db_name }}"
+BACKUP_DIR="{{ db_backup_dir }}"
+KEEP_DAYS="{{ db_backup_keep_days }}"
+
+# Имя архива с меткой времени, чтобы каждый запуск давал новый файл
+STAMP="$(date +%Y%m%d_%H%M%S)"
+RAW="${BACKUP_DIR}/${DB_NAME}_${STAMP}.sql"
+GZ="${RAW}.gz"
+ENC="${GZ}.enc"
+
+# Простой логгер с датой; пишем и в файл, и в stdout (stdout cron пришлёт в mail при ошибке)
+log() { echo "[$(date '+%F %T')] $*" | tee -a "$LOG"; }
+
+# Чистим временный сырой дамп при любом выходе (успех или ошибка), чтобы не оставлять его на диске
+cleanup() { [ -f "$RAW" ] && rm -f "$RAW"; }
+trap cleanup EXIT
+
+log "=== Старт бэкапа базы ${DB_NAME} ==="
+
+# --- Проверка creds-файла: без паролей дальше идти нельзя ---
+if [ ! -r "$CREDS" ]; then
+  log "ОШИБКА: creds-файл ${CREDS} недоступен для чтения"
+  exit 1
+fi
+# Подтягиваем переменные DB_BACKUP_PASS и BACKUP_ENCRYPT_PASS из защищённого файла
+# shellcheck disable=SC1090
+source "$CREDS"
+if [ -z "${DB_BACKUP_PASS:-}" ]; then
+  log "ОШИБКА: в creds-файле нет DB_BACKUP_PASS"
+  exit 1
+fi
+
+# --- Снимаем дамп. --single-transaction = консистентный снимок InnoDB без блокировок.
+#     Пароль передаём через MYSQL_PWD ТОЛЬКО на время процесса и сразу стираем переменную,
+#     чтобы не тащить её дальше по скрипту (альтернатива в проде — --defaults-extra-file). ---
+mkdir -p "$BACKUP_DIR"
+log "Снимаю дамп mysqldump ..."
+MYSQL_PWD="$DB_BACKUP_PASS" mysqldump \
+  --user="$DB_USER" \
+  --socket="$DB_SOCKET" \
+  --single-transaction \
+  --routines --triggers \
+  "$DB_NAME" > "$RAW"
+unset MYSQL_PWD
+log "Дамп снят: $(du -h "$RAW" | cut -f1)"
+
+# --- Сжимаем ---
+gzip -f "$RAW"
+log "Сжато: ${GZ} ($(du -h "$GZ" | cut -f1))"
+
+# --- Шифрование архива openssl (блок добавляется только при backup_encrypt: true).
+#     Пароль шифрования тоже берётся из creds-файла (BACKUP_ENCRYPT_PASS). ---
+{% if backup_encrypt | bool %}
+if [ -z "${BACKUP_ENCRYPT_PASS:-}" ]; then
+  log "ОШИБКА: backup_encrypt включён, но в creds нет BACKUP_ENCRYPT_PASS"
+  exit 1
+fi
+log "Шифрую архив openssl (aes-256-cbc) ..."
+# -pbkdf2 = современный вывод ключа; -salt по умолчанию; пароль через -pass env (не светится в ps)
+openssl enc -aes-256-cbc -salt -pbkdf2 -in "$GZ" -out "$ENC" \
+  -pass "env:BACKUP_ENCRYPT_PASS"
+rm -f "$GZ"   # незашифрованный gzip больше не нужен
+log "Зашифровано: ${ENC}"
+{% else %}
+log "Шифрование выключено (backup_encrypt=false), оставляю ${GZ}"
+{% endif %}
+
+# --- Ротация: удаляем архивы старше KEEP_DAYS (и .gz, и .gz.enc — безвредно, если каких-то нет) ---
+log "Ротация: удаляю архивы старше ${KEEP_DAYS} дней ..."
+find "$BACKUP_DIR" -maxdepth 1 -type f \( -name "*.sql.gz" -o -name "*.sql.gz.enc" \) \
+  -mtime +"$KEEP_DAYS" -delete -print | tee -a "$LOG"
+
+log "=== Бэкап завершён успешно ==="
+exit 0

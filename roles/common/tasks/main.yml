@@ -1,0 +1,109 @@
+# Задачи роли common — первичная подготовка ОС (Server Baseline).
+# Порядок важен: правило UFW для SSH идёт ДО включения файрвола, чтобы не отрезать доступ.
+
+# --- Обновление ОС (идемпотентно: cache_valid_time не дёргает сеть чаще раза в час) ---
+- name: Обновить кэш пакетов и обновить ОС
+  ansible.builtin.apt:
+    update_cache: yes
+    upgrade: dist                 # dist = полное обновление пакетов
+    cache_valid_time: 3600
+  tags: [baseline, patching]
+
+# --- Базовые пакеты (список берётся из defaults/main.yml) ---
+- name: Установить базовые пакеты
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags: baseline
+
+# --- Админ-пользователь и его SSH-ключ (идемпотентно: user не пересоздаётся, если уже есть) ---
+- name: Создать админ-пользователя с sudo
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: sudo
+    shell: /bin/bash
+    create_home: yes
+  tags: baseline
+
+- name: Деплой публичного SSH-ключа админа
+  ansible.builtin.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ admin_ssh_public_key }}"
+    state: present
+  tags: baseline
+
+# --- Hardening SSH через шаблон. validate проверяет конфиг ДО записи (sshd -t),
+#     чтобы битый файл не закрыл нам вход. Любое изменение -> handler перезапустит ssh. ---
+# --- SSH-сервер: в WSL и минимальных образах он НЕ предустановлен, а validate
+#     у шаблона sshd_config вызывает /usr/sbin/sshd -t. state: present идемпотентен
+#     (на серверах, где openssh-server уже стоит, задача ничего не делает). ---
+- name: Установить openssh-server
+  ansible.builtin.apt:
+    name: openssh-server
+    state: present
+  tags: [baseline, security]
+
+- name: Развернуть sshd_config из шаблона
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: restart sshd
+  tags: [baseline, security]
+
+# --- sudoers для админа. validate через visudo обязателен: битый sudoers = заблокированный sudo ---
+- name: Развернуть sudoers для админа (sudo без пароля)
+  ansible.builtin.template:
+    src: sudoers_admin.j2
+    dest: /etc/sudoers.d/{{ admin_user }}
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  tags: [baseline, security]
+
+# --- UFW: сначала разрешаем SSH, ПОТОМ включаем (иначе отрежем себе доступ) ---
+- name: UFW — разрешить SSH
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ ssh_port | string }}"
+    proto: tcp
+  tags: [baseline, security]
+
+# HTTP/HTTPS открываем только на веб-хостах (условие по группе из инвентаря)
+- name: UFW — разрешить HTTP/HTTPS только на web-хостах
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: ["80", "443"]
+  when: "'web' in group_names"
+  tags: [baseline, security]
+
+- name: UFW — включить (входящие по умолчанию запрещены)
+  ansible.builtin.ufw:
+    state: enabled
+    direction: incoming
+    policy: deny
+  tags: [baseline, security]
+
+# --- Синхронизация времени через системный timedatectl (без установки лишних пакетов) ---
+- name: Включить синхронизацию времени (NTP)
+  ansible.builtin.command: timedatectl set-ntp true
+  changed_when: false             # настройка, а не состояние файла — повторный вызов систему не меняет
+  when: ntp_enabled | bool
+  tags: baseline
+
+# --- Автопатчи безопасности (только security-обновления, без авто-ребута) ---
+- name: Настроить unattended-upgrades (только обновления безопасности)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/51unattended-upgrades-local
+    mode: "0644"
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}-security";
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+  when: unattended_upgrades | bool
+  tags: [baseline, patching]

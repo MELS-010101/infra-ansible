@@ -1,0 +1,15 @@
+---
+# Переменные роли db.
+# Если в vault заданы vault_mysql_exporter_password / vault_mysql_backup_password,
+# они перекроют значения по умолчанию.
+
+mysql_socket: /run/mysqld/mysqld.sock
+
+mysql_exporter_user: exporter
+mysql_exporter_password: "{{ vault_mysql_exporter_password | default('exporter_secret_2024') }}"
+mysql_exporter_port: "9101"
+mysql_exporter_image: prom/mysqld-exporter:v0.15.1
+mysql_exporter_container: mysqld_exporter
+
+mysql_backup_user: backup
+mysql_backup_password: "{{ vault_mysql_backup_password | default('backup_secret_2024') }}"

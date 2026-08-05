@@ -1,0 +1,9 @@
+# Обработчики роли nginx. Вызываются через notify из tasks/main.yml
+# и выполняются в конце play ТОЛЬКО если соответствующая задача пометила changed.
+
+# Перезапуск nginx после изменения конфига сайта или симлинка.
+# Если шаблон не менял файл — handler не запустится и nginx не дёрнется (идемпотентность).
+- name: restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted

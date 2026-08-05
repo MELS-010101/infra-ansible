@@ -1,0 +1,15 @@
+# inventory/group_vars/all.yml — переменные, общие ВСЕМ хостам (группа all).
+# Переписан начисто из WSL: чистый UTF-8 без BOM, LF, без невидимых байтов.
+# Секреты — отдельно, в all/vault.yml.
+
+# Имя админ-пользователя: роль common создаст его и даст sudo без пароля.
+admin_user: deploy
+
+# Публичный SSH-ключ админа (лабовый, сгенерирован: ~/.ssh/id_ed25519_lab.pub).
+admin_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFFxBDJV2axpTEA06cbMjUZkk8559BOGN5uw3guWiUoi mels@lab"
+
+# Синхронизация времени. В WSL время даёт хост-Windows -> локально ВЫК (осознанно).
+ntp_enabled: false
+
+# Автопатчи безопасности (unattended-upgrades).
+unattended_upgrades: true

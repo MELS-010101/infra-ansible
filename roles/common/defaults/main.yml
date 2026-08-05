@@ -1,0 +1,26 @@
+# Значения по умолчанию роли common (первичная подготовка ОС).
+# Всё, что здесь, можно переопределить в inventory/group_vars/*.yml без правки роли.
+
+# Базовые пакеты, которые должны стоять на каждом сервере.
+# ca-certificates/gnupg/lsb-release нужны другим ролям для добавления apt-репозиториев и ключей.
+common_packages:
+  - curl
+  - htop
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+# Порт SSH. Меняй здесь — шаблон sshd_config.j2 и правило UFW подхватят автоматически.
+ssh_port: 22
+
+# Hardening SSH: запрет входа под root и по паролю (только ключи).
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"
+
+# Ограничение попыток входа и таймаут неактивной сессии (защита от брута).
+ssh_max_auth_tries: 3
+ssh_client_alive_interval: 300
+ssh_client_alive_count_max: 2

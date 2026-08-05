@@ -1,0 +1,13 @@
+# Переменные группы [web] — применяются ко всем хостам из секции [web] инвентаря
+
+# Имя сервера для nginx. {{ ansible_hostname }} — fact, ansible подставит имя хоста сам
+nginx_server_name: "{{ ansible_hostname }}.local"
+
+# Порт, на котором слушает nginx
+nginx_listen_port: 80
+
+# Версия PHP-FPM (влияет на имя пакета и путь к сокету)
+php_fpm_version: "8.1"
+
+# Корневая папка сайта
+web_root: /var/www/html

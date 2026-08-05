@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+# Файл управляется Ansible — правки руками будут перезаписаны при следующем прогоне.
+# Имя сайта, порт, корень и версия PHP приходят из inventory/group_vars/web.yml.
+# Лимиты, пути логов и флаг PHP — из roles/nginx/defaults/main.yml.
+
+server {
+    # Порт и имя сервера (подставляются из переменных, без хардкода)
+    listen {{ nginx_listen_port }} default_server;
+    server_name {{ nginx_server_name }};
+
+    # Корень сайта и индексные файлы
+    root {{ web_root }};
+    index index.php index.html;
+
+    # Лимит размера загружаемого тела запроса
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    # Пути логов (можно перенаправить через переменные роли)
+    access_log {{ nginx_access_log }};
+    error_log  {{ nginx_error_log }};
+
+    # Отдача статики: если файла нет — вернуть 404
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Обработка PHP добавляется ТОЛЬКО если включён флаг nginx_enable_php (LEMP-режим).
+    # При nginx_enable_php: false этот блок в конфиг не попадёт вовсе.
+{% if nginx_enable_php | bool %}
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        # Сокет php-fpm: версия берётся из переменной, путь стандартный для Ubuntu
+        fastcgi_pass unix:/run/php/php{{ php_fpm_version }}-fpm.sock;
+    }
+{% endif %}
+
+    # Запрет доступа к скрытым файлам (.git, .env и т.п.), кроме .well-known
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+}
