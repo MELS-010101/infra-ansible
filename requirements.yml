@@ -1,7 +1,9 @@
 # Внешние коллекции, которые использует проект.
 # community.mysql   — mysql_user/mysql_db в роли db
 # community.general — ufw и прочие общие модули (роль common)
+# ansible.posix     — authorized_key (роль common)
 collections:
   - name: community.mysql
     version: ">=3.9.0,<4.0.0"
   - name: community.general
+  - name: ansible.posix
