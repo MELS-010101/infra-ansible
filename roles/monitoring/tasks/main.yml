@@ -183,7 +183,7 @@
     - "{{ grafana_port }}"
     - "{{ prometheus_port }}"
   when: ufw_enabled | default(false) | bool
-  - name: Каталог для provisioned-дашбордов Grafana
+- name: Каталог для provisioned-дашбордов Grafana
   ansible.builtin.file:
     path: /etc/grafana/dashboards
     state: directory
