@@ -1,0 +1,57 @@
+{
+  "uid": "lemp-overview",
+  "title": "LEMP Overview",
+  "tags": ["ansible", "lemp"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "MySQL up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "mysql_up", "datasource": {"type": "prometheus", "uid": "prometheus"}}],
+      "gridPos": {"h": 6, "w": 4, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "CPU, % busy",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "datasource": {"type": "prometheus", "uid": "prometheus"}}],
+      "gridPos": {"h": 6, "w": 10, "x": 4, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Memory, % used",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100", "datasource": {"type": "prometheus", "uid": "prometheus"}}],
+      "gridPos": {"h": 6, "w": 10, "x": 14, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Disk /, % used",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})) * 100", "datasource": {"type": "prometheus", "uid": "prometheus"}}],
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 6},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Network, bytes/s",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "rate(node_network_receive_bytes_total{device!=\"lo\"}[5m])", "legendFormat": "rx {{device}}", "datasource": {"type": "prometheus", "uid": "prometheus"}},
+        {"refId": "B", "expr": "rate(node_network_transmit_bytes_total{device!=\"lo\"}[5m])", "legendFormat": "tx {{device}}", "datasource": {"type": "prometheus", "uid": "prometheus"}}
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 6},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "MySQL connections",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "mysql_global_status_threads_connected", "datasource": {"type": "prometheus", "uid": "prometheus"}}],
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 6},
+      "fieldConfig": {"defaults": {}, "overrides": []}
+    }
+  ]
+}

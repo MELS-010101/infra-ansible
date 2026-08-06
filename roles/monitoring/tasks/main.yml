@@ -145,6 +145,7 @@
           access: proxy
           url: http://localhost:{{ prometheus_port }}
           isDefault: true
+          uid: prometheus
   notify: restart grafana
 
 - name: Каталог drop-in для Grafana
@@ -182,3 +183,31 @@
     - "{{ grafana_port }}"
     - "{{ prometheus_port }}"
   when: ufw_enabled | default(false) | bool
+  - name: Каталог для provisioned-дашбордов Grafana
+  ansible.builtin.file:
+    path: /etc/grafana/dashboards
+    state: directory
+    mode: "0755"
+
+- name: Дашборд LEMP Overview (JSON из кода)
+  ansible.builtin.copy:
+    src: lemp-overview.json
+    dest: /etc/grafana/dashboards/lemp-overview.json
+    mode: "0644"
+  notify: restart grafana
+
+- name: Provisioning-провайдер дашбордов
+  ansible.builtin.copy:
+    dest: /etc/grafana/provisioning/dashboards/ansible.yml
+    mode: "0644"
+    content: |
+      # Ansible managed
+      apiVersion: 1
+      providers:
+        - name: ansible-dashboards
+          orgId: 1
+          type: file
+          updateIntervalSeconds: 30
+          options:
+            path: /etc/grafana/dashboards
+  notify: restart grafana
