@@ -1,11 +1,12 @@
 ---
-# Роль backup: резервные копии СУБД через mysqldump и cron.
-# ПАКЕТЫ СУБД СТАВИТ ТОЛЬКО РОЛЬ db! Здесь клиент ставится лишь как fallback,
-# строго того же flavor, что и сервер — иначе dpkg-конфликт "trying to overwrite".
+# Роль backup: шифрованные бэкапы СУБД с ротацией, логом и отказоустойчивостью.
+# ПАКЕТЫ СУБД СТАВИТ ТОЛЬКО РОЛЬ db — здесь клиент только как fallback.
 
-- name: Установить cron
+- name: Установить cron и openssl
   ansible.builtin.apt:
-    name: cron
+    name:
+      - cron
+      - openssl
     state: present
     update_cache: true
   environment:
@@ -28,7 +29,6 @@
   register: mariadb_pkg
   changed_when: false
 
-# Fallback: ставим клиент того же flavor, что и сервер, только если дампера нет
 - name: Установить клиент СУБД (fallback, flavor-aware)
   ansible.builtin.apt:
     name: "{{ 'mariadb-client' if 'install ok installed' in mariadb_pkg.stdout else 'mysql-client' }}"
@@ -44,7 +44,11 @@
     state: directory
     mode: "0750"
 
-# Пароль в кавычках: иначе # в пароле из vault обрежет значение как комментарий
+- name: Сгенерировать ключ шифрования бэкапов (один раз)
+  ansible.builtin.shell: openssl rand -hex 32 > /etc/mysql-backup.key && chmod 600 /etc/mysql-backup.key
+  args:
+    creates: /etc/mysql-backup.key
+
 - name: Создать файл учётных данных MySQL для бэкапов
   ansible.builtin.copy:
     dest: /etc/mysql-backup.cnf
@@ -54,6 +58,7 @@
       [client]
       user={{ mysql_backup_user }}
       password="{{ mysql_backup_password }}"
+  no_log: true
 
 - name: Создать скрипт резервного копирования MySQL
   ansible.builtin.copy:
@@ -61,44 +66,67 @@
     mode: "0755"
     content: |
       #!/usr/bin/env bash
-      # Бэкап всех баз в {{ mysql_backup_dir }}
-      set -euo pipefail
+      # Бэкап всех баз: dump -> gzip -> openssl (aes-256-cbc, pbkdf2) -> ротация.
+      # Ошибки пишем в лог и шлём в Telegram (если настроен), а не молча умираем.
+      set -uo pipefail
 
       BACKUP_DIR="{{ mysql_backup_dir }}"
+      KEY_FILE="/etc/mysql-backup.key"
+      LOG="/var/log/db_backup.log"
+      ALERTS_CONF="/etc/backup-alerts.conf"
       STAMP="$(date +%Y%m%d-%H%M%S)"
       RETENTION_DAYS="7"
-      DUMP_FILE="${BACKUP_DIR}/all-${STAMP}.sql"
-      MARKER_FILE="${BACKUP_DIR}/.initial_done"
+      TMP="${BACKUP_DIR}/.tmp-all-${STAMP}.sql.gz"
+      OUT="${BACKUP_DIR}/all-${STAMP}.sql.gz.enc"
+
+      log()  { echo "$(date '+%F %T') $*" >> "$LOG"; }
+
+      alert() {
+        log "ERROR: $*"
+        # Опциональный Telegram-хук: создай /etc/backup-alerts.conf с
+        # TELEGRAM_TOKEN=... и TELEGRAM_CHAT_ID=... — и алерты поедут в чат.
+        if [ -r "$ALERTS_CONF" ]; then
+          # shellcheck disable=SC1090
+          . "$ALERTS_CONF"
+          curl -fsS -m 10 "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="[infra-ansible] backup FAILED: $*" || true
+        fi
+      }
 
       # Ждём доступность СУБД, но не бесконечно
       for i in {1..30}; do
         if /usr/bin/mysqladmin --defaults-extra-file=/etc/mysql-backup.cnf ping >/dev/null 2>&1; then
           break
         fi
-
         sleep 2
-
         if [ "$i" -eq 30 ]; then
-          echo "СУБД недоступна, бэкап не выполнен" >&2
+          alert "СУБД недоступна, бэкап не выполнен"
           exit 1
         fi
       done
 
-      /usr/bin/mysqldump \
-        --defaults-extra-file=/etc/mysql-backup.cnf \
-        --all-databases \
-        --single-transaction \
-        --quick \
-        --routines \
-        --triggers \
-        --events > "${DUMP_FILE}"
+      if ! /usr/bin/mysqldump \
+            --defaults-extra-file=/etc/mysql-backup.cnf \
+            --all-databases --single-transaction --quick \
+            --routines --triggers --events | gzip > "$TMP"; then
+        alert "mysqldump завершился с ошибкой"
+        rm -f "$TMP"
+        exit 1
+      fi
 
-      gzip "${DUMP_FILE}"
+      if ! openssl enc -aes-256-cbc -pbkdf2 -salt \
+            -in "$TMP" -out "$OUT" -pass "file:$KEY_FILE"; then
+        alert "ошибка шифрования архива"
+        rm -f "$TMP"
+        exit 1
+      fi
+      rm -f "$TMP"
 
-      # Ротация: старше 7 дней удаляем
-      find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'all-*.sql.gz' -mtime +"${RETENTION_DAYS}" -delete
+      find "$BACKUP_DIR" -maxdepth 1 -type f -name 'all-*.sql.gz.enc' -mtime +"$RETENTION_DAYS" -delete
 
-      touch "${MARKER_FILE}"
+      log "OK: $OUT ($(stat -c%s "$OUT") bytes)"
+      touch "${BACKUP_DIR}/.initial_enc_done"
 
 - name: "Cron: ежедневный бэкап MySQL"
   ansible.builtin.cron:
@@ -106,9 +134,38 @@
     user: root
     minute: "{{ mysql_backup_cron_minute }}"
     hour: "{{ mysql_backup_cron_hour }}"
-    job: "/usr/local/bin/mysql-backup.sh"
+    job: "/usr/local/bin/mysql-backup.sh >> /var/log/db_backup.log 2>&1"
 
-- name: Выполнить первый бэкап
-  ansible.builtin.command: /usr/local/bin/mysql-backup.sh
-  args:
-    creates: "{{ mysql_backup_dir }}/.initial_done"
+- name: Первый бэкап (block/rescue/always — падение не роняет плейбук)
+  block:
+    - name: Выполнить первый бэкап
+      ansible.builtin.command: /usr/local/bin/mysql-backup.sh
+      args:
+        creates: "{{ mysql_backup_dir }}/.initial_enc_done"
+  rescue:
+    - name: Алерт-маркер для админа
+      ansible.builtin.copy:
+        dest: /var/log/db_backup_alert
+        mode: "0644"
+        content: |
+          Первый бэкап завершился с ошибкой.
+          Подробности: /var/log/db_backup.log
+    - name: Хвост лога бэкапа
+      ansible.builtin.command: tail -n 10 /var/log/db_backup.log
+      register: backup_log_tail
+      failed_when: false
+      changed_when: false
+    - name: Показать лог в выводе плейбука
+      ansible.builtin.debug:
+        msg: "{{ backup_log_tail.stdout_lines | default(['лог пуст']) }}"
+  always:
+    - name: Блок бэкапа завершил работу
+      ansible.builtin.debug:
+        msg: "backup play finished (block/rescue/always отработал)"
+
+- name: Удалить старые НЕзашифрованные дампы (после появления шифрованного)
+  ansible.builtin.shell: |
+    if ls "{{ mysql_backup_dir }}"/all-*.sql.gz.enc >/dev/null 2>&1; then
+      find "{{ mysql_backup_dir }}" -maxdepth 1 -type f -name 'all-*.sql.gz' -delete
+    fi
+  changed_when: false

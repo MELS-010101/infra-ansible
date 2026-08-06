@@ -1,0 +1,12 @@
+---
+profile: min
+skip_list:
+  - package-latest          # update_cache + state: present — осознанно
+  - yaml[line-length]       # длинные DSN/команды читабельнее в одну строку
+  - yaml[truthy]            # become: yes в site.yml — стиль проекта
+  - command-instead-of-module  # docker CLI и which — модулей под это нет
+  - no-changed-when         # часть command-задач идемпотентна через creates
+  - risky-file-permissions  # служебные файлы с явными mode там, где важно
+exclude_paths:
+  - .cache/
+  - .github/

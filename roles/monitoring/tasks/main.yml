@@ -1,6 +1,7 @@
 ---
-# Роль monitoring: Prometheus Node Exporter (метрики ОС, порт 9100).
-# mysqld_exporter теперь ставится пакетом prometheus-mysqld-exporter в роли db.
+# Роль monitoring: Node Exporter + Prometheus + Grafana.
+# Grafana: берём из apt, если пакет есть; иначе официальный .deb с dl.grafana.com
+# (Docker Hub из этой сети недоступен, поэтому без контейнеров).
 
 - name: Создать системного пользователя node_exporter
   ansible.builtin.user:
@@ -38,7 +39,6 @@
       # Ansible managed
       [Unit]
       Description=Prometheus Node Exporter
-      Documentation=https://prometheus.io/docs/guides/node-exporter/
       After=network-online.target
 
       [Service]
@@ -60,10 +60,125 @@
     enabled: true
     daemon_reload: true
 
-- name: UFW — открыть порт метрик node_exporter
+- name: Установить Prometheus из репозитория Ubuntu
+  ansible.builtin.apt:
+    name: prometheus
+    state: present
+    update_cache: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Проверить, есть ли пакет grafana в apt
+  ansible.builtin.shell: |
+    cand=$(apt-cache policy grafana 2>/dev/null | awk '/Candidate:/{print $2}')
+    [ -n "$cand" ] && [ "$cand" != "(none)" ]
+  register: grafana_apt
+  changed_when: false
+  failed_when: false
+
+- name: Установить Grafana из apt (если пакет доступен)
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: grafana_apt.rc == 0
+
+- name: Скачать официальный deb Grafana (если в apt пакета нет)
+  ansible.builtin.get_url:
+    url: "https://dl.grafana.com/oss/release/grafana_{{ grafana_version }}_amd64.deb"
+    dest: /tmp/grafana.deb
+    mode: "0644"
+  when: grafana_apt.rc != 0
+
+- name: Установить deb Grafana
+  ansible.builtin.apt:
+    deb: /tmp/grafana.deb
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  when: grafana_apt.rc != 0
+
+- name: Конфигурация Prometheus (scrape-таргеты)
+  ansible.builtin.copy:
+    dest: /etc/prometheus/prometheus.yml
+    mode: "0644"
+    content: |
+      # Ansible managed
+      global:
+        scrape_interval: 15s
+
+      scrape_configs:
+        - job_name: prometheus
+          static_configs:
+            - targets: ["localhost:{{ prometheus_port }}"]
+        - job_name: node
+          static_configs:
+            - targets: ["localhost:{{ node_exporter_port }}"]
+        - job_name: mysqld
+          static_configs:
+            - targets: ["localhost:9101"]
+  notify: restart prometheus
+
+- name: Prometheus включён и запущен
+  ansible.builtin.systemd:
+    name: prometheus
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Каталог provisioning datasources Grafana
+  ansible.builtin.file:
+    path: /etc/grafana/provisioning/datasources
+    state: directory
+    mode: "0755"
+
+- name: Datasource Prometheus для Grafana (provisioning)
+  ansible.builtin.copy:
+    dest: /etc/grafana/provisioning/datasources/ansible-prometheus.yml
+    mode: "0644"
+    content: |
+      # Ansible managed
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://localhost:{{ prometheus_port }}
+          isDefault: true
+  notify: restart grafana
+
+- name: Каталог drop-in для Grafana
+  ansible.builtin.file:
+    path: /etc/systemd/system/grafana-server.service.d
+    state: directory
+    mode: "0755"
+
+- name: "Drop-in: пароль админа Grafana из vault"
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/grafana-server.service.d/override.conf
+    mode: "0640"
+    content: |
+      # Ansible managed
+      [Service]
+      Environment=GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}
+  no_log: true
+  notify:
+    - reload systemd
+    - restart grafana
+
+- name: Grafana включена и запущена
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: UFW — открыть порты Grafana и Prometheus
   community.general.ufw:
     rule: allow
-    port: "{{ node_exporter_port }}"
+    port: "{{ item }}"
     proto: tcp
-    comment: "Prometheus Node Exporter metrics"
+  loop:
+    - "{{ grafana_port }}"
+    - "{{ prometheus_port }}"
   when: ufw_enabled | default(false) | bool

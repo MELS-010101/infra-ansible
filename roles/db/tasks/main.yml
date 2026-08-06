@@ -17,6 +17,7 @@
   ansible.builtin.copy:
     dest: /etc/default/prometheus-mysqld-exporter
     mode: "0640"
+    no_log: true
     content: |
       # Ansible managed
       # urlencode защищает DSN от спецсимволов пароля (#, ! и т.п.)
@@ -54,6 +55,7 @@
     login_password: "{{ vault_mysql_root_password | default(omit) }}"
     check_implicit_admin: true
     state: present
+  no_log: true
   loop:
     - localhost
     - 127.0.0.1
@@ -70,6 +72,7 @@
     login_password: "{{ vault_mysql_root_password | default(omit) }}"
     check_implicit_admin: true
     state: present
+  no_log: true
   loop:
     - localhost
     - 127.0.0.1

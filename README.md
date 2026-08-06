@@ -1,18 +1,18 @@
-# infra-ansible — Production-ready автоматизация инфраструктуры на Ansible
+# infra-ansible — автоматизация инфраструктуры на Ansible
 
-Комплексный проект конфигурационного менеджмента, демонстрирующий развёртывание и
-обслуживание серверной инфраструктуры по best practices: подготовка ОС, стек
-**Nginx + MariaDB + Docker**, наблюдаемость через **Prometheus-экспортеры** и
-автоматические **бэкапы с ротацией**. Код написан идемпотентно, с упором на
-безопасность (Ansible Vault, `no_log`, принцип минимальных привилегий) и готов к
-переносу в CI/CD.
+Портфолийный проект конфигурационного менеджмента: production-подобный стенд
+по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
+runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana),
+**шифрованные бэкапы с ротацией и отказоустойчивостью**, секреты в **Ansible Vault**,
+**CI на GitHub Actions**. Код идемпотентен: повторный прогон — `changed=0`.
 
-Проект покрывает четыре направления одним прогоном:
+Одним прогоном покрываются пять направлений:
 
-1. **Server Baseline** — апдейты, админ-юзер с ключом, hardening SSH, UFW, автопатчи.
-2. **Configuration Management** — Nginx + PHP-FPM, MariaDB, Docker Engine.
-3. **Observability** — Node Exporter (метрики ОС) + MySQLd Exporter (метрики СУБД).
-4. **Maintenance** — ежедневные дампы БД, шифрование архивов, ротация, обработка ошибок.
+1. **Server Baseline** — апдейты, админ-юзер с ключом, SSH, UFW, автопатчи безопасности.
+2. **Configuration Management** — Nginx + PHP-FPM 8.1, СУБД (MySQL/MariaDB, автоопределение), Docker Engine.
+3. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090), Grafana (:3000).
+4. **Maintenance** — ежедневные шифрованные дампы всех баз, ротация 7 дней, лог, алерты, `block/rescue/always`.
+5. **CI** — ansible-lint + syntax-check на каждый push/PR.
 
 ---
 
@@ -20,16 +20,18 @@
 
 | Компонент | Назначение |
 |---|---|
-| **Ansible** (>= 2.14) | Конфигурационный менеджер, agentless-модель |
-| **MariaDB** | Реляционная СУБД |
-| **Nginx + PHP-FPM** | Веб-сервер и обработчик PHP (LEMP) |
-| **Docker Engine** | Контейнерный рантайм из официального репозитория |
-| **Prometheus Node Exporter** | Метрики ОС (CPU/RAM/disk/net) |
-| **Prometheus MySQLd Exporter** | Метрики СУБД (соединения, репликация) |
-| **Ansible Vault** | Шифрование секретов в репозитории |
-| **UFW / fail2ban** | Хостовой файрвол и защита от брута |
+| **Ansible** (>= 2.14) | конфигурационный менеджер, agentless |
+| **MySQL / MariaDB** | СУБД; flavor определяется автоматически по dpkg |
+| **Nginx + PHP-FPM 8.1** | веб-слой LEMP |
+| **Docker Engine** | docker-ce, если уже установлен; иначе docker.io (guard от конфликта) |
+| **Prometheus Node Exporter** | метрики ОС, :9100 |
+| **Prometheus MySQLd Exporter** | метрики СУБД, :9101 (нативный пакет + systemd drop-in) |
+| **Prometheus Server** | сбор метрик, :9090; scrape-таргеты: prometheus/node/mysqld |
+| **Grafana** | визуализация, :3000; datasource provisioned автоматически |
+| **Ansible Vault** | шифрование секретов в репозитории |
+| **UFW** | хостовой файрвол, default deny |
 
-Внешние коллекции (ставятся из `requirements.yml`): `community.mysql`, `community.docker`.
+Внешние коллекции (`requirements.yml`): `community.mysql`, `community.general`.
 
 ---
 
@@ -37,224 +39,157 @@
 
 ```
 infra-ansible/
-├── ansible.cfg                 # настройки ansible (инвентарь, роли, вьюлты)
-├── requirements.yml            # зависимости: внешние коллекции
+├── ansible.cfg                 # инвентарь, роли, путь к vault-паролю
+├── requirements.yml            # внешние коллекции
+├── .ansible-lint               # профиль lint для CI и локальной разработки
+├── .github/workflows/ci.yml    # CI: syntax-check + ansible-lint
 ├── .gitignore                  # .vault_pass и служебные файлы НЕ коммитятся
-├── .vault_pass                 # ключ от Vault — ЛОКАЛЬНО, вне git
 ├── inventory/
-│   ├── inventory.ini           # хосты и группы [web] [db]
+│   ├── inventory.ini           # [web] и [db] = localhost (connection=local)
 │   └── group_vars/
-│       ├── all.yml             # общие переменные (админ-юзер, SSH-ключ)
-│       ├── web.yml             # переменные веб-слоя (имя сайта, порт, PHP)
-│       ├── db.yml              # переменные СУБД + пул пользователей
-│       └── vault.yml           # СЕКРЕТЫ (зашифровано ansible-vault)
+│       ├── all/
+│       │   ├── main.yml        # общие переменные (админ-юзер, SSH-ключ)
+│       │   └── vault.yml       # СЕКРЕТЫ (зашифровано ansible-vault)
+│       ├── web.yml             # переменные веб-слоя (php_fpm_version и т.п.)
+│       └── db.yml              # переменные СУБД
 ├── playbooks/
-│   ├── site.yml                # полный прогон всех ролей по порядку
+│   ├── site.yml                # полный прогон всех ролей по порядку (с тегами)
 │   └── deploy.yml              # боевой релиз (без baseline и backup)
 └── roles/
     ├── common/                 # Server Baseline
-    ├── nginx/                  # веб-слой LEMP
-    ├── db/                     # MariaDB + минимальные привилегии + hardening
-    ├── docker/                 # Docker Engine
-    ├── monitoring/             # экспортеры Prometheus
-    └── backup/                 # бэкапы с ротацией (block/rescue/always)
+    ├── nginx/                  # веб-слой LEMP + статус-страница
+    ├── db/                     # СУБД + пользователи + mysqld_exporter
+    ├── docker/                 # Docker Engine (с guard'ом)
+    ├── monitoring/             # node_exporter + Prometheus + Grafana
+    └── backup/                 # шифрованные бэкапы, ротация, rescue-алерты
 ```
 
-Каждая роль следует стандартной структуре Ansible: `defaults/` (значения по
-умолчанию), `tasks/` (задачи), `handlers/` (перезапуск сервисов), `templates/`
-(Jinja2-шаблоны конфигов). Роль `backup` осознанно **не** содержит `handlers/` —
-она не управляет долгоживущими сервисами.
+`.vault_pass` (ключ от vault) существует **только локально** и внесён в `.gitignore`.
 
 ---
 
-## Архитектурные решения и безопасность
+## Архитектурные решения (реальные, из кода)
 
-### Принцип минимальных привилегий в СУБД
-В MariaDB **нет** отдельного root-пароля: управление идёт через плагин
-`unix_socket` (модули логинятся через `login_unix_socket` под `become: yes`).
-Прикладные пользователи создаются **одним циклом `loop`** из списка в
-`group_vars/db.yml`, у каждого — свой набор прав:
-
-- `app_user` — только операции с данными (`SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER`)
-  и только в своей базе `app_db`, только со своего хоста.
-- `backup_user` — только чтение и блокировка для дампа (`SELECT,LOCK TABLES,SHOW VIEW,TRIGGER`);
-  `DROP`/`DELETE`/`INSERT` намеренно не выданы.
-- `exporter` — только мониторинг (`PROCESS,REPLICATION CLIENT` + чтение `performance_schema`),
-  без доступа к данным приложений.
-
-### Секреты и логирование
-- Пароли хранятся **только** в `inventory/group_vars/vault.yml`, зашифрованном
-  `ansible-vault`. В открытом виде в репозитории их нет.
-- В задачах, где создаются пользователи или раскладываются файлы с паролями
-  (creds-файл бэкапа, env-файл экспортера), стоит **`no_log: true`** — секреты не
-  попадают ни в вывод терминала, ни в diff, ни в логи CI.
-- Пароли **не** вшиваются в тексты скриптов: они лежат в отдельных файлах с правами
-  `0600`, которые скрипты читают в рантайме. Поэтому скрипты безопасны для git.
-
-### Hardening, эквивалент `mysql_secure_installation`
-Роль `db` воспроизводит `mysql_secure_installation` модулями под управляемыми
-флагами: удаление анонимных пользователей, удаление тестовой БД и прав на неё,
-запрет удалённого входа под root.
-
-### Идемпотентность, шаблоны и обработчики
-- Все конфиги (sshd, sudoers, nginx, my.cnf, daemon.json, systemd-юниты)
-  развёртываются через `template` (Jinja2) и заполняются из Ansible Facts и
-  переменных хоста — без хардкода.
-- Конфиги с критичным синтаксисом пишутся с `validate` (например `sshd -t`,
-  `visudo -cf`, `python3 -m json.tool`) — битый файл проверяется **до** записи и
-  не ломает систему.
-- Сервисы перезапускаются **только** при реальном изменении их конфигов через
-  `handlers` (`notify`) — повторный прогон без правок ничего не дёргает.
-
-### Отказоустойчивость бэкапов
-Роль `backup` использует конструкцию **`block / rescue / always`**: тестовый прогон
-скрипта при деплое ловит ошибку в `rescue`, пишет в лог и выводит алерт-заглушку,
-но **не** роняет плейбук — выполнение продолжается. В проде `rescue` заменяется на
-реальную отправку уведомления (mail / Telegram / PagerDuty).
-
-### Обслуживание
-- Docker: ротация логов контейнеров через `daemon.json` (защита от заполнения диска).
-- Бэкапы: шифрование архивов `openssl` (aes-256-cbc, `-pbkdf2`) и ротация по сроку
-  хранения (`find -mtime -delete`).
-- ОС: только security-обновления через `unattended-upgrades`, синхронизация времени.
+- **Автоопределение flavor СУБД.** Роль `db` смотрит `dpkg-query` и ставит/использует
+  mysql или mariadb; сервисы, пакеты и клиенты выбираются соответственно.
+- **Guard по Docker.** `docker.io` ставится, только если Docker совсем отсутствует,
+  иначе конфликт с Docker CE (`containerd.io : Conflicts: containerd`).
+- **Наблюдаемость без внешних реестров.** Docker Hub из сети хоста недоступен
+  (`connection reset by peer`), поэтому: mysqld_exporter — нативный пакет
+  `prometheus-mysqld-exporter` (порт и DSN — через systemd drop-in и env-файл),
+  Prometheus — пакет из universe, Grafana — официальный `.deb` с dl.grafana.com
+  (fallback, если пакета нет в apt). Наблюдаемость не зависит от Docker Hub.
+- **Секреты со спецсимволами.** Пароль из vault с `#` и `!` в DSN уходит через
+  `urlencode`, в backup-`.cnf` — в кавычках; задачи с секретами — с `no_log: true`;
+  файлы с секретами — `0600/0640`.
+- **Один хост в двух группах.** `localhost` состоит в `[web]` и `[db]`: получает оба
+  набора group_vars, apt не ловит lock от двух «разных» хостов.
+- **Handlers только по изменению.** Сервисы перезапускаются через `notify` лишь при
+  реальной правке конфигов; повторный прогон — `changed=0`.
+- **WSL + OneDrive.** Критичные файлы пишутся heredoc из WSL — защита от рассинхрона
+  редактора; ansible запускается только из WSL.
 
 ---
 
-## Требования
+## Безопасность
 
-**Управляющая машина** (где запускается ansible):
-- Ansible >= 2.14, Python 3, доступ в интернет (для коллекций и пакетов).
-- SSH-доступ к целевым хостам **или** запуск локально (`connection=local`).
-
-**Целевые хосты:**
-- Ubuntu 22.04/24.04 (amd64), `sudo` у ansible-пользователя.
-- Для работы с MariaDB из ansible на целях нужен `python3-pymysql` — роль `db`
-  ставит его сама.
-
-> Заметка по окружению: если проект редактируется на Windows, а ansible стоит в
-> WSL, файлы доступны через `/mnt/c/...` без копирования. Перед первым прогоном на
-> NTFS рекомендуется включить metadata в WSL (см. раздел «Заметки по запуску»),
-> иначе ansible выдаст предупреждение «world writable directory» и проигнорирует
-> `ansible.cfg`.
+- Секреты — только в `inventory/group_vars/all/vault.yml` (зашифрован);
+  `.vault_pass` в репозитории нет никогда.
+- Пользователи СУБД раздельные: `exporter` — только мониторинг
+  (`PROCESS, REPLICATION CLIENT, SELECT`); `backup` — права для полного дампа.
+- Бэкапы шифруются `openssl aes-256-cbc -pbkdf2`; ключ `/etc/mysql-backup.key` (0600)
+  в git не попадает; старые **незашифрованные** дампы удаляются после появления шифрованного.
+- UFW: default deny; разрешены SSH, HTTP/HTTPS и порты метрик.
+- `unattended-upgrades` — только обновления безопасности.
 
 ---
 
 ## Быстрый старт
 
 ```bash
-# 1. Установить внешние коллекции из requirements.yml
 ansible-galaxy collection install -r requirements.yml
-
-# 2. Подготовить ключ от Vault (ЛОКАЛЬНО, в git не коммитится — см. .gitignore)
-printf '%s' 'YOUR_VAULT_PASSWORD' > .vault_pass
-
-# 3. Отредактировать инвентарь и переменные под свою среду:
-#    - inventory/inventory.ini        (хосты, группы)
-#    - inventory/group_vars/all.yml   (админ-юзер, публичный SSH-ключ)
-#    - inventory/group_vars/*.yml     (параметры слоёв)
-
-# 4. Полный прогон (все роли по порядку)
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml \
-  --vault-password-file .vault_pass
+printf '%s' 'YOUR_VAULT_PASSWORD' > .vault_pass && chmod 600 .vault_pass
+# правка под свою среду: inventory/inventory.ini, inventory/group_vars/*
+ansible-playbook playbooks/site.yml --vault-password-file .vault_pass
 ```
-
-Пароль от Vault (`YOUR_VAULT_PASSWORD`) — это «ключ от сейфа»: храните его в
-менеджере паролей (Bitwarden / KeePass / 1Password), а не в файлах и чатах. В CI
-его передают как защищённую переменную окружения и генерируют `.vault_pass` на
-лету — в репозитории ключа нет никогда.
 
 ---
 
 ## Примеры CLI
 
-**Сухая проверка (dry-run)** — показать, что изменится, не трогая систему:
 ```bash
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml \
-  --vault-password-file .vault_pass --check --diff
-```
-> Ограничение `--check`: модули, которые реально скачивают/распаковывают артефакты
-> (например `unarchive` с `remote_src`, `get_url`), в dry-run могут отрабатывать
-> не полностью — это известное поведение ansible, а не баг роли.
-
-**Запуск одного слоя по тегу** (теги: `baseline`, `docker`, `web`, `db`,
-`monitoring`, `backup`, а также `security`, `patching`):
-```bash
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml \
-  --vault-password-file .vault_pass --tags db
-
-# несколько тегов
-ansible-playbook ... --tags baseline,security
-
-# пропустить слой (например, не трогать бэкапы при отладке)
-ansible-playbook ... --skip-tags backup
-```
-
-**Ограничение по хостам** (только веб-слой, только один хост):
-```bash
-ansible-playbook ... --limit web
-ansible-playbook ... --limit db-01
-```
-
-**Vault без файла** (интерактивный ввод пароля) — когда файла под рукой нет:
-```bash
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml --ask-vault-pass
-```
-
-**Vault в CI** (пароль из защищённой переменной окружения):
-```bash
-printf '%s' "$VAULT_PASSWORD" > .vault_pass
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml \
-  --vault-password-file .vault_pass
-rm -f .vault_pass
-```
-
-**Боевой релиз** (без первичной подготовки ОС и без бэкапов — только приложение):
-```bash
-ansible-playbook -i inventory/inventory.ini playbooks/deploy.yml \
-  --vault-password-file .vault_pass
-```
-
-**Работа с зашифрованным файлом:**
-```bash
-ansible-vault view    --vault-password-file .vault_pass inventory/group_vars/vault.yml
-ansible-vault edit    --vault-password-file .vault_pass inventory/group_vars/vault.yml
-ansible-vault rekey   --vault-password-file .vault_pass inventory/group_vars/vault.yml
+ansible-playbook playbooks/site.yml --check --diff        # dry-run
+ansible-playbook playbooks/site.yml --tags db             # теги: baseline, docker, web, db, monitoring, backup
+ansible-playbook playbooks/site.yml --skip-tags backup
+ansible-playbook playbooks/site.yml --limit web
+ansible-playbook playbooks/deploy.yml                     # боевой релиз
+ansible-vault view inventory/group_vars/all/vault.yml
 ```
 
 ---
 
 ## Что проверить после прогона
 
-На целевых хостах:
+```bash
+systemctl status nginx php8.1-fpm docker cron
+systemctl status mysql            # или mariadb — какой flavor встал
+systemctl status prometheus-mysqld-exporter node_exporter prometheus grafana-server
+
+curl -sI localhost | head -n 1                        # HTTP/1.1 200
+curl -s localhost:9100/metrics | head                 # node
+curl -s localhost:9101/metrics | grep '^mysql_up'     # mysql_up 1
+curl -s localhost:9090/-/healthy                      # Prometheus is Healthy
+curl -s localhost:3000/api/health                     # Grafana ok
+curl -s 'localhost:9090/api/v1/targets' | grep -o '"health":"up"' | uniq -c   # 3 таргета up
+
+ls -lh /var/backups/mysql                             # all-*.sql.gz.enc
+tail -n 3 /var/log/db_backup.log                      # OK: ...
+crontab -l | grep mysql-backup                        # 30 2 * * *
+```
+
+**Grafana:** `http://localhost:3000`, логин `admin`, пароль `admin`
+(или задай `vault_grafana_admin_password` в vault; смена пароля —
+`grafana-cli admin reset-admin-password 'new'`). Datasource Prometheus
+подключён автоматически; для красивых дашбордов импортируй ID 1860 (Node Exporter).
+
+**Восстановление БД из шифрованного бэкапа:**
 
 ```bash
-# Сервисы подняты
-systemctl status nginx php*-fpm mariadb docker node_exporter mysqld_exporter
-
-# Метрики ОС доступны (порт 9100)
-curl -s http://localhost:9100/metrics | head
-
-# Метрики СУБД доступны на db-хосте (порт 9101)
-curl -s http://localhost:9101/metrics | head
-
-# Пользователи СУБД и их права (войти под root через сокет)
-sudo mysql -e "SELECT user,host FROM mysql.user;"
-
-# Бэкап снялся и зашифрован
-ls -lh /var/backups/mysql/
-cat /var/log/db_backup.log
-
-# Файрвол
-sudo ufw status verbose
+openssl enc -d -aes-256-cbc -pbkdf2 -pass file:/etc/mysql-backup.key \
+  -in /var/backups/mysql/all-*.sql.gz.enc | zcat | mysql
 ```
+
+**Telegram-алерты бэкапов (опционально):** создай `/etc/backup-alerts.conf`:
+
+```bash
+TELEGRAM_TOKEN=123456:AAA...
+TELEGRAM_CHAT_ID=-100...
+```
+
+---
+
+## CI
+
+`.github/workflows/ci.yml` на каждый push/PR: `ansible-playbook --syntax-check`
++ `ansible-lint` (профиль `min`, осознанные skip — в `.ansible-lint`).
+Реальный vault-ключ в CI не попадает (`.vault_pass` в gitignore, в CI — заглушка).
 
 ---
 
 ## Идемпотентность
 
-Повторный прогон `site.yml` без изменений в переменных не должен вносить правок:
-задачи помечаются `ok`, обработчики не срабатывают, сервисы не перезапускаются.
-Это проверяется вторым запуском подряд — хороший тест корректности роли.
+Повторный прогон `site.yml` без правок в переменных: `failed=0 changed=0`,
+сервисы не перезапускаются. Проверено повторным запуском.
+
+---
+
+## Roadmap (запланировано, в коде ещё нет)
+
+- `app_user` с минимальными привилегиями на отдельную базу;
+- hardening СУБД, эквивалент `mysql_secure_installation`;
+- fail2ban; ротация логов Docker через `daemon.json`;
+- provisioned-дашборды Grafana из кода;
+- docker-compose-вариант observability для сред с доступным Docker Hub.
 
 ---
 
@@ -264,5 +199,5 @@ MIT — используйте и адаптируйте свободно.
 
 ## Автор
 
-**MELS** — проект подготовлен как демонстрация навыков системного администрирования
-и конфигурационного менеджмента (путь в DevOps).
+**MELS** — демонстрация навыков системного администрирования и конфигурационного
+менеджмента (путь в DevOps).

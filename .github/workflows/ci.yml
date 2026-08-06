@@ -1,0 +1,31 @@
+---
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    name: ansible-lint + syntax check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible + lint
+        run: pip install --quiet ansible-core ansible-lint
+
+      - name: Vault-pass заглушка (реальный ключ никогда не в CI)
+        run: printf 'ci-dummy' > .vault_pass
+
+      - name: Syntax check
+        run: ansible-playbook -i inventory/inventory.ini playbooks/site.yml --syntax-check
+
+      - name: Ansible-lint
+        run: ansible-lint

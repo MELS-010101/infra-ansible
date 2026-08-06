@@ -1,22 +1,8 @@
-# Значения по умолчанию роли monitoring. Переопределяются через group_vars/host_vars.
-
-# --- Prometheus Node Exporter (метрики ОС: CPU, память, диск, сеть) ---
-# Версия зафиксирована явно — скачиваем конкретный бинарник с GitHub, не из apt.
-node_exporter_version: "1.8.2"
-node_exporter_port: 9100
-# Системный пользователь, от которого работает сервис (без shell, без home)
-node_exporter_user: node_exporter
-# Тумблер: можно выключить экспорт метрик ОС, не трогая tasks
-node_exporter_enabled: true
-
-# --- MySQLd Exporter (метрики СУБД: репликация, соединения, медленные запросы) ---
-mysqld_exporter_version: "0.15.1"
-mysqld_exporter_port: 9101
-mysqld_exporter_user: mysqld_exporter
-# Тумблер: можно выключить экспорт метрик СУБД, не трогая tasks
-mysqld_exporter_enabled: true
-
-# Кем экспортер СУБД логинится в MariaDB.
-# Имя совпадает с юзером 'exporter' из пула в group_vars/db.yml (права PROCESS/REPLICATION/performance_schema).
-# Пароль берётся из vault (vault_db_exporter_password) — в tasks, не здесь.
-mysqld_exporter_db_user: exporter
+---
+node_exporter_version: "1.9.1"
+node_exporter_port: "9100"
+prometheus_port: "9090"
+grafana_port: "3000"
+# Если в vault задать vault_grafana_admin_password — возьмётся оттуда
+grafana_admin_password: "{{ vault_grafana_admin_password | default('admin') }}"
+grafana_version: "10.4.7"
