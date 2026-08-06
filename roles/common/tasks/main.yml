@@ -65,7 +65,7 @@
 
 # --- UFW: сначала разрешаем SSH, ПОТОМ включаем (иначе отрежем себе доступ) ---
 - name: UFW — разрешить SSH
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: "{{ ssh_port | string }}"
     proto: tcp
@@ -73,7 +73,7 @@
 
 # HTTP/HTTPS открываем только на веб-хостах (условие по группе из инвентаря)
 - name: UFW — разрешить HTTP/HTTPS только на web-хостах
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: "{{ item }}"
     proto: tcp
@@ -82,7 +82,7 @@
   tags: [baseline, security]
 
 - name: UFW — включить (входящие по умолчанию запрещены)
-  ansible.builtin.ufw:
+  community.general.ufw:
     state: enabled
     direction: incoming
     policy: deny
