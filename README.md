@@ -189,18 +189,14 @@ TELEGRAM_CHAT_ID=-100...
 - hardening СУБД, эквивалент `mysql_secure_installation`;
 - fail2ban; ротация логов Docker через `daemon.json`;
 - provisioned-дашборды Grafana из кода;
-- docker-compose-вариант observability для сред с доступным Docker Hub.
+- docker-compose-вариант observability для сред с доступным Docker Hub;
+- Python-скрипт acceptance-проверок (порт/сервис/свежесть бэкапа) + шаг в CI.
 
 ---
 
 ## Лицензия
 
 MIT — используйте и адаптируйте свободно.
-
-## Автор
-
-**MELS** — демонстрация навыков системного администрирования и конфигурационного
-менеджмента (путь в DevOps).
 
 ## Автор
 
