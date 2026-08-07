@@ -13,3 +13,8 @@ mysql_exporter_container: mysqld_exporter
 
 mysql_backup_user: backup
 mysql_backup_password: "{{ vault_mysql_backup_password | default('backup_secret_2024') }}"
+
+# Security-pack: app-пользователь с минимальными привилегиями
+app_db_name: app_db
+app_user: app_user
+app_user_password: '{{ vault_app_user_password | default("AppSecret_2026!") }}'

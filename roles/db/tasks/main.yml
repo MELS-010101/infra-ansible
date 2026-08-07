@@ -1,7 +1,5 @@
 ---
-# Роль db: СУБД (mysql или mariadb — автоопределение), пользователи
-# и Prometheus MySQL Exporter (нативный пакет, systemd, порт 9101).
-# Docker для экспортера НЕ используем: Docker Hub недоступен из этой сети.
+# Роль db: СУБД (flavor-aware) + пользователи + mysqld_exporter + security-pack.
 
 - name: Проверить, установлен ли mariadb-server
   ansible.builtin.shell: dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null || true
@@ -12,16 +10,14 @@
   ansible.builtin.set_fact:
     db_flavor: "{{ 'mariadb' if 'install ok installed' in mariadb_pkg.stdout else 'mysql' }}"
 
-# env-файл с DSN создаём ДО установки пакета, чтобы сервис стартовал уже с DSN
 - name: Создать env-файл с DSN для экспортера
   ansible.builtin.copy:
     dest: /etc/default/prometheus-mysqld-exporter
     mode: "0640"
-    no_log: true
     content: |
       # Ansible managed
-      # urlencode защищает DSN от спецсимволов пароля (#, ! и т.п.)
       DATA_SOURCE_NAME={{ mysql_exporter_user }}:{{ mysql_exporter_password | urlencode }}@tcp(127.0.0.1:3306)/
+  no_log: true
   notify: restart mysqld exporter
 
 - name: Установить СУБД, pymysql и Prometheus MySQL Exporter
@@ -55,10 +51,10 @@
     login_password: "{{ vault_mysql_root_password | default(omit) }}"
     check_implicit_admin: true
     state: present
-  no_log: true
   loop:
     - localhost
     - 127.0.0.1
+  no_log: true
   notify: restart mysqld exporter
 
 - name: Создать пользователя СУБД для резервных копий
@@ -72,12 +68,10 @@
     login_password: "{{ vault_mysql_root_password | default(omit) }}"
     check_implicit_admin: true
     state: present
-  no_log: true
   loop:
     - localhost
     - 127.0.0.1
-
-# --- Чистка старой контейнерной схемы ---
+  no_log: true
 
 - name: Удалить старый контейнер mysqld_exporter (если остался)
   ansible.builtin.command: docker rm -f mysqld_exporter
@@ -97,8 +91,6 @@
     path: /etc/systemd/system/mysqld_exporter.service
     state: absent
   notify: reload systemd
-
-# --- Настройка пакетного сервиса: порт 9101 через drop-in ---
 
 - name: Каталог drop-in для prometheus-mysqld-exporter
   ansible.builtin.file:
@@ -126,3 +118,53 @@
     state: started
     enabled: true
     daemon_reload: true
+
+# --- Security-pack: прикладной пользователь с минимальными привилегиями ---
+- name: Создать прикладную базу app_db
+  community.mysql.mysql_db:
+    name: "{{ app_db_name }}"
+    state: present
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    check_implicit_admin: true
+
+- name: Создать app_user с правами только на app_db
+  community.mysql.mysql_user:
+    name: "{{ app_user }}"
+    password: "{{ app_user_password }}"
+    host: "{{ item }}"
+    priv: "{{ app_db_name }}.*:SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER"
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    check_implicit_admin: true
+    state: present
+  loop:
+    - localhost
+    - 127.0.0.1
+  no_log: true
+
+# --- Security-pack: hardening, эквивалент mysql_secure_installation ---
+- name: Удалить анонимных пользователей и test-базу
+  community.mysql.mysql_query:
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    query:
+      - DELETE FROM mysql.user WHERE user = ''
+      - DROP DATABASE IF EXISTS test
+      - DELETE FROM mysql.db WHERE db = 'test' OR db = 'test\\_%'
+      - FLUSH PRIVILEGES
+  register: db_hardening
+  changed_when: (db_hardening.rowcount | default([0]))[0] > 0
+
+- name: Запретить удалённый вход под root (root@% absent)
+  community.mysql.mysql_user:
+    name: root
+    host: "%"
+    state: absent
+    login_user: root
+    login_unix_socket: "{{ mysql_socket }}"
+    login_password: "{{ vault_mysql_root_password | default(omit) }}"
+    check_implicit_admin: true

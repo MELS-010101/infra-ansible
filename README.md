@@ -2,17 +2,20 @@
 
 Портфолийный проект конфигурационного менеджмента: production-подобный стенд
 по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
-runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana),
-**шифрованные бэкапы с ротацией и отказоустойчивостью**, секреты в **Ansible Vault**,
-**CI на GitHub Actions**. Код идемпотентен: повторный прогон — `changed=0`.
+runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana
+с дашбордом из кода), **шифрованные бэкапы с ротацией и отказоустойчивостью**,
+**security-hardening** (fail2ban, least-privilege, эквивалент mysql_secure_installation),
+секреты в **Ansible Vault**, **CI на GitHub Actions**. Код идемпотентен: повторный
+прогон — `changed=0`.
 
-Одним прогоном покрываются пять направлений:
+Одним прогоном покрываются шесть направлений:
 
-1. **Server Baseline** — апдейты, админ-юзер с ключом, SSH, UFW, автопатчи безопасности.
+1. **Server Baseline** — апдейты, админ-юзер с ключом, SSH, UFW, автопатчи безопасности, fail2ban.
 2. **Configuration Management** — Nginx + PHP-FPM 8.1, СУБД (MySQL/MariaDB, автоопределение), Docker Engine.
-3. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090), Grafana (:3000).
-4. **Maintenance** — ежедневные шифрованные дампы всех баз, ротация 7 дней, лог, алерты, `block/rescue/always`.
-5. **CI** — ansible-lint + syntax-check на каждый push/PR.
+3. **Security** — hardening СУБД, прикладной пользователь с минимальными привилегиями, раздельные учётки.
+4. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090), Grafana (:3000) + provisioned-дашборд.
+5. **Maintenance** — ежедневные шифрованные дампы всех баз, ротация 7 дней, лог, алерты, `block/rescue/always`.
+6. **CI** — ansible-lint + syntax-check на каждый push/PR.
 
 ---
 
@@ -27,11 +30,12 @@ runtime **Docker**, полная **наблюдаемость** (Node Exporter +
 | **Prometheus Node Exporter** | метрики ОС, :9100 |
 | **Prometheus MySQLd Exporter** | метрики СУБД, :9101 (нативный пакет + systemd drop-in) |
 | **Prometheus Server** | сбор метрик, :9090; scrape-таргеты: prometheus/node/mysqld |
-| **Grafana** | визуализация, :3000; datasource provisioned автоматически |
+| **Grafana** | визуализация, :3000; datasource и дашборд provisioned из кода |
+| **fail2ban** | защита SSH от брутфорса (jail sshd, 5 попыток, бан 10 минут) |
 | **Ansible Vault** | шифрование секретов в репозитории |
 | **UFW** | хостовой файрвол, default deny |
 
-Внешние коллекции (`requirements.yml`): `community.mysql`, `community.general`.
+Внешние коллекции (`requirements.yml`): `community.mysql`, `community.general`, `ansible.posix`.
 
 ---
 
@@ -56,11 +60,11 @@ infra-ansible/
 │   ├── site.yml                # полный прогон всех ролей по порядку (с тегами)
 │   └── deploy.yml              # боевой релиз (без baseline и backup)
 └── roles/
-    ├── common/                 # Server Baseline
+    ├── common/                 # Server Baseline + fail2ban
     ├── nginx/                  # веб-слой LEMP + статус-страница
-    ├── db/                     # СУБД + пользователи + mysqld_exporter
+    ├── db/                     # СУБД + пользователи + hardening + mysqld_exporter
     ├── docker/                 # Docker Engine (с guard'ом)
-    ├── monitoring/             # node_exporter + Prometheus + Grafana
+    ├── monitoring/             # node_exporter + Prometheus + Grafana + дашборд
     └── backup/                 # шифрованные бэкапы, ротация, rescue-алерты
 ```
 
@@ -79,6 +83,8 @@ infra-ansible/
   `prometheus-mysqld-exporter` (порт и DSN — через systemd drop-in и env-файл),
   Prometheus — пакет из universe, Grafana — официальный `.deb` с dl.grafana.com
   (fallback, если пакета нет в apt). Наблюдаемость не зависит от Docker Hub.
+- **Дашборд как код.** Grafana подхватывает datasource и дашборд LEMP Overview
+  через provisioning-файлы и JSON из роли — без ручных кликов, на любом хосте.
 - **Секреты со спецсимволами.** Пароль из vault с `#` и `!` в DSN уходит через
   `urlencode`, в backup-`.cnf` — в кавычках; задачи с секретами — с `no_log: true`;
   файлы с секретами — `0600/0640`.
@@ -95,8 +101,15 @@ infra-ansible/
 
 - Секреты — только в `inventory/group_vars/all/vault.yml` (зашифрован);
   `.vault_pass` в репозитории нет никогда.
-- Пользователи СУБД раздельные: `exporter` — только мониторинг
-  (`PROCESS, REPLICATION CLIENT, SELECT`); `backup` — права для полного дампа.
+- **Раздельные учётки СУБД по принципу минимальных привилегий:**
+  - `exporter` — только мониторинг (`PROCESS, REPLICATION CLIENT, SELECT`);
+  - `backup` — права для полного дампа;
+  - `app_user` — только `app_db` и только операции данных
+    (`SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER`), видит в `SHOW DATABASES` лишь свою базу.
+- **Hardening СУБД (эквивалент `mysql_secure_installation`):** удаление анонимных
+  пользователей и test-базы, запрет удалённого входа под root (`root@%` absent).
+- **fail2ban:** jail `sshd` (maxretry 5, бан 10 минут); в WSL гарантируется наличие
+  `/var/log/auth.log` (без rsyslog).
 - Бэкапы шифруются `openssl aes-256-cbc -pbkdf2`; ключ `/etc/mysql-backup.key` (0600)
   в git не попадает; старые **незашифрованные** дампы удаляются после появления шифрованного.
 - UFW: default deny; разрешены SSH, HTTP/HTTPS и порты метрик.
@@ -131,7 +144,7 @@ ansible-vault view inventory/group_vars/all/vault.yml
 ## Что проверить после прогона
 
 ```bash
-systemctl status nginx php8.1-fpm docker cron
+systemctl status nginx php8.1-fpm docker cron fail2ban
 systemctl status mysql            # или mariadb — какой flavor встал
 systemctl status prometheus-mysqld-exporter node_exporter prometheus grafana-server
 
@@ -140,7 +153,10 @@ curl -s localhost:9100/metrics | head                 # node
 curl -s localhost:9101/metrics | grep '^mysql_up'     # mysql_up 1
 curl -s localhost:9090/-/healthy                      # Prometheus is Healthy
 curl -s localhost:3000/api/health                     # Grafana ok
-curl -s 'localhost:9090/api/v1/targets' | grep -o '"health":"up"' | uniq -c   # 3 таргета up
+
+sudo fail2ban-client status sshd                      # Jail list: sshd
+sudo mysql -e "SELECT user,host FROM mysql.user;"     # app_user есть, root только localhost
+MYSQL_PWD='<пароль app_user>' mysql -u app_user -h 127.0.0.1 -e "SHOW DATABASES;"  # только app_db
 
 ls -lh /var/backups/mysql                             # all-*.sql.gz.enc
 tail -n 3 /var/log/db_backup.log                      # OK: ...
@@ -149,8 +165,8 @@ crontab -l | grep mysql-backup                        # 30 2 * * *
 
 **Grafana:** `http://localhost:3000`, логин `admin`, пароль `admin`
 (или задай `vault_grafana_admin_password` в vault; смена пароля —
-`grafana-cli admin reset-admin-password 'new'`). Datasource Prometheus
-подключён автоматически; для красивых дашбордов импортируй ID 1860 (Node Exporter).
+`grafana-cli admin reset-admin-password 'new'`). Дашборд **LEMP Overview**
+(CPU/RAM/Disk/Network/MySQL) появляется автоматически из кода.
 
 **Восстановление БД из шифрованного бэкапа:**
 
@@ -185,10 +201,8 @@ TELEGRAM_CHAT_ID=-100...
 
 ## Roadmap (запланировано, в коде ещё нет)
 
-- `app_user` с минимальными привилегиями на отдельную базу;
-- hardening СУБД, эквивалент `mysql_secure_installation`;
-- fail2ban; ротация логов Docker через `daemon.json`;
-- provisioned-дашборды Grafana из кода;
+- ротация логов Docker через `daemon.json`;
+- provisioned-алерты Grafana (threshold + notification policies);
 - docker-compose-вариант observability для сред с доступным Docker Hub;
 - Python-скрипт acceptance-проверок (порт/сервис/свежесть бэкапа) + шаг в CI.
 

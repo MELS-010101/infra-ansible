@@ -107,3 +107,43 @@
       Unattended-Upgrade::Automatic-Reboot "false";
   when: unattended_upgrades | bool
   tags: [baseline, patching]
+  
+   # --- Security-pack: fail2ban против брутфорса SSH ---
+- name: Установить fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  tags: [baseline, security]
+
+- name: Развернуть jail для sshd
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/ansible.conf
+    mode: "0644"
+    content: |
+      # Ansible managed
+      [sshd]
+      enabled = true
+      port = ssh
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = 5
+      findtime = 10m
+      bantime = 10m
+  notify: restart fail2ban
+  tags: [baseline, security]
+
+- name: fail2ban включён и запущен
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true
+  tags: [baseline, security]
+
+- name: Создать /var/log/auth.log, если его нет (WSL без rsyslog)
+  ansible.builtin.command: touch /var/log/auth.log
+  args:
+    creates: /var/log/auth.log
+  notify: restart fail2ban
+  tags: [baseline, security]
