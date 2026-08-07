@@ -34,3 +34,18 @@
     path: /opt/infra-ansible
     state: directory
     mode: "0755"
+
+- name: Ротация логов Docker (daemon.json)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+    validate: /usr/bin/python3 -m json.tool %s
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+  notify: restart docker

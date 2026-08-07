@@ -1,0 +1,15 @@
+---
+- name: Развернуть скрипт самопроверки infra_check.py
+  ansible.builtin.copy:
+    src: infra_check.py
+    dest: /usr/local/bin/infra_check.py
+    mode: "0755"
+
+- name: Прогнать acceptance-проверки стенда
+  ansible.builtin.command: /usr/local/bin/infra_check.py
+  register: acceptance_result
+  changed_when: false
+
+- name: Показать результат приёмки
+  ansible.builtin.debug:
+    msg: "{{ acceptance_result.stdout_lines }}"

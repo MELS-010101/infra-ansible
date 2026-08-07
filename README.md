@@ -5,17 +5,18 @@
 runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana
 с дашбордом из кода), **шифрованные бэкапы с ротацией и отказоустойчивостью**,
 **security-hardening** (fail2ban, least-privilege, эквивалент mysql_secure_installation),
-секреты в **Ansible Vault**, **CI на GitHub Actions**. Код идемпотентен: повторный
-прогон — `changed=0`.
+секреты в **Ansible Vault**, **CI на GitHub Actions** и **Python-приёмка**,
+которая после каждого прогона доказывает, что стенд реально здоров.
 
-Одним прогоном покрываются шесть направлений:
+Одним прогоном покрываются семь направлений:
 
 1. **Server Baseline** — апдейты, админ-юзер с ключом, SSH, UFW, автопатчи безопасности, fail2ban.
-2. **Configuration Management** — Nginx + PHP-FPM 8.1, СУБД (MySQL/MariaDB, автоопределение), Docker Engine.
+2. **Configuration Management** — Nginx + PHP-FPM 8.1, СУБД (MySQL/MariaDB, автоопределение), Docker Engine с ротацией логов.
 3. **Security** — hardening СУБД, прикладной пользователь с минимальными привилегиями, раздельные учётки.
 4. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090), Grafana (:3000) + provisioned-дашборд.
 5. **Maintenance** — ежедневные шифрованные дампы всех баз, ротация 7 дней, лог, алерты, `block/rescue/always`.
-6. **CI** — ansible-lint + syntax-check на каждый push/PR.
+6. **Acceptance** — Python-скрипт (stdlib) проверяет сервисы, HTTP, метрики и свежесть бэкапа; плейбук падает, если стенд нездоров.
+7. **CI** — ansible-lint + syntax-check + compile-check Python на каждый push/PR.
 
 ---
 
@@ -32,6 +33,7 @@ runtime **Docker**, полная **наблюдаемость** (Node Exporter +
 | **Prometheus Server** | сбор метрик, :9090; scrape-таргеты: prometheus/node/mysqld |
 | **Grafana** | визуализация, :3000; datasource и дашборд provisioned из кода |
 | **fail2ban** | защита SSH от брутфорса (jail sshd, 5 попыток, бан 10 минут) |
+| **infra_check.py (Python)** | приёмка стенда: сервисы, HTTP, `mysql_up`, свежесть бэкапа; только stdlib |
 | **Ansible Vault** | шифрование секретов в репозитории |
 | **UFW** | хостовой файрвол, default deny |
 
@@ -46,7 +48,7 @@ infra-ansible/
 ├── ansible.cfg                 # инвентарь, роли, путь к vault-паролю
 ├── requirements.yml            # внешние коллекции
 ├── .ansible-lint               # профиль lint для CI и локальной разработки
-├── .github/workflows/ci.yml    # CI: syntax-check + ansible-lint
+├── .github/workflows/ci.yml    # CI: syntax-check + ansible-lint + py_compile
 ├── .gitignore                  # .vault_pass и служебные файлы НЕ коммитятся
 ├── inventory/
 │   ├── inventory.ini           # [web] и [db] = localhost (connection=local)
@@ -57,15 +59,16 @@ infra-ansible/
 │       ├── web.yml             # переменные веб-слоя (php_fpm_version и т.п.)
 │       └── db.yml              # переменные СУБД
 ├── playbooks/
-│   ├── site.yml                # полный прогон всех ролей по порядку (с тегами)
+│   ├── site.yml                # полный прогон всех ролей + acceptance (с тегами)
 │   └── deploy.yml              # боевой релиз (без baseline и backup)
 └── roles/
     ├── common/                 # Server Baseline + fail2ban
     ├── nginx/                  # веб-слой LEMP + статус-страница
     ├── db/                     # СУБД + пользователи + hardening + mysqld_exporter
-    ├── docker/                 # Docker Engine (с guard'ом)
+    ├── docker/                 # Docker Engine (guard) + ротация логов
     ├── monitoring/             # node_exporter + Prometheus + Grafana + дашборд
-    └── backup/                 # шифрованные бэкапы, ротация, rescue-алерты
+    ├── backup/                 # шифрованные бэкапы, ротация, rescue-алерты
+    └── acceptance/             # Python-приёмка стенда (files/infra_check.py)
 ```
 
 `.vault_pass` (ключ от vault) существует **только локально** и внесён в `.gitignore`.
@@ -85,6 +88,11 @@ infra-ansible/
   (fallback, если пакета нет в apt). Наблюдаемость не зависит от Docker Hub.
 - **Дашборд как код.** Grafana подхватывает datasource и дашборд LEMP Overview
   через provisioning-файлы и JSON из роли — без ручных кликов, на любом хосте.
+- **Приёмка после каждого прогона.** Финальный play гоняет
+  `/usr/local/bin/infra_check.py`: сервисы active (с ретраями против окна
+  перезапуска), HTTP 200, `mysql_up 1`, бэкап свежее 26 часов. Ненулевой код
+  роняет плейбук — «зелёный RECAP» означает «стенд реально здоров», а не
+  «задачи отработали».
 - **Секреты со спецсимволами.** Пароль из vault с `#` и `!` в DSN уходит через
   `urlencode`, в backup-`.cnf` — в кавычках; задачи с секретами — с `no_log: true`;
   файлы с секретами — `0600/0640`.
@@ -112,6 +120,8 @@ infra-ansible/
   `/var/log/auth.log` (без rsyslog).
 - Бэкапы шифруются `openssl aes-256-cbc -pbkdf2`; ключ `/etc/mysql-backup.key` (0600)
   в git не попадает; старые **незашифрованные** дампы удаляются после появления шифрованного.
+- Docker: ротация логов контейнеров через `daemon.json` (10m × 3 файла, `validate`
+  через `json.tool` до записи).
 - UFW: default deny; разрешены SSH, HTTP/HTTPS и порты метрик.
 - `unattended-upgrades` — только обновления безопасности.
 
@@ -132,7 +142,7 @@ ansible-playbook playbooks/site.yml --vault-password-file .vault_pass
 
 ```bash
 ansible-playbook playbooks/site.yml --check --diff        # dry-run
-ansible-playbook playbooks/site.yml --tags db             # теги: baseline, docker, web, db, monitoring, backup
+ansible-playbook playbooks/site.yml --tags db             # теги: baseline, docker, web, db, monitoring, backup, acceptance
 ansible-playbook playbooks/site.yml --skip-tags backup
 ansible-playbook playbooks/site.yml --limit web
 ansible-playbook playbooks/deploy.yml                     # боевой релиз
@@ -147,6 +157,8 @@ ansible-vault view inventory/group_vars/all/vault.yml
 systemctl status nginx php8.1-fpm docker cron fail2ban
 systemctl status mysql            # или mariadb — какой flavor встал
 systemctl status prometheus-mysqld-exporter node_exporter prometheus grafana-server
+
+/usr/local/bin/infra_check.py     # ACCEPTANCE PASSED — стенд здоров
 
 curl -sI localhost | head -n 1                        # HTTP/1.1 200
 curl -s localhost:9100/metrics | head                 # node
@@ -187,7 +199,8 @@ TELEGRAM_CHAT_ID=-100...
 ## CI
 
 `.github/workflows/ci.yml` на каждый push/PR: `ansible-playbook --syntax-check`
-+ `ansible-lint` (профиль `min`, осознанные skip — в `.ansible-lint`).
++ `ansible-lint` (профиль `min`, осознанные skip — в `.ansible-lint`)
++ `python -m py_compile` acceptance-скрипта.
 Реальный vault-ключ в CI не попадает (`.vault_pass` в gitignore, в CI — заглушка).
 
 ---
@@ -201,10 +214,9 @@ TELEGRAM_CHAT_ID=-100...
 
 ## Roadmap (запланировано, в коде ещё нет)
 
-- ротация логов Docker через `daemon.json`;
 - provisioned-алерты Grafana (threshold + notification policies);
 - docker-compose-вариант observability для сред с доступным Docker Hub;
-- Python-скрипт acceptance-проверок (порт/сервис/свежесть бэкапа) + шаг в CI.
+- вынос acceptance в отдельный шаг CI с артефактом-отчётом.
 
 ---
 

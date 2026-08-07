@@ -51,3 +51,10 @@
   tags: backup
   roles:
     - backup
+# 5) Приёмка: стенд проверяет себя сам (Python, stdlib). Тег: acceptance
+- name: Acceptance
+  hosts: all
+  become: yes
+  tags: acceptance
+  roles:
+    - acceptance

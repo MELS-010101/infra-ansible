@@ -27,6 +27,9 @@ jobs:
       - name: Vault-pass заглушка (реальный ключ никогда не в CI)
         run: printf 'ci-dummy' > .vault_pass
 
+      - name: Python compile-check acceptance-скрипта
+        run: python3 -m py_compile roles/acceptance/files/infra_check.py
+
       - name: Syntax check
         run: ansible-playbook -i inventory/inventory.ini playbooks/site.yml --syntax-check
 
