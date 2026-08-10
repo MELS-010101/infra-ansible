@@ -8,6 +8,7 @@
 import json
 import os
 import sys
+import time
 import urllib.request
 
 CONF = "/etc/infra-alerts.conf"
@@ -32,10 +33,16 @@ def read_conf():
 def tg(token, chat, text):
     url = "https://api.telegram.org/bot%s/sendMessage" % token
     data = json.dumps({"chat_id": chat, "text": text}).encode()
-    req = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return json.load(r).get("ok", False)
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                url, data=data, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return json.load(r).get("ok", False)
+        except Exception as exc:  # noqa: BLE001
+            print("tg attempt %d failed: %s" % (attempt + 1, exc))
+            time.sleep(5)
+    return False
 
 
 def get_alerts():
@@ -73,7 +80,7 @@ def main():
 
     firing = {}
     for a in get_alerts():
-        if a["status"] == "firing":
+        if a.get("state") == "firing":
             firing[a["labels"].get("alertname", "?")] = a
 
     st = load_state()

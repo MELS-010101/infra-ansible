@@ -16,7 +16,7 @@
     mode: "0640"
     content: |
       # Ansible managed
-      DATA_SOURCE_NAME={{ mysql_exporter_user }}:{{ mysql_exporter_password | urlencode }}@tcp(127.0.0.1:3306)/
+      DATA_SOURCE_NAME="{{ mysql_exporter_user }}:{{ mysql_exporter_password }}@tcp(127.0.0.1:3306)/"
   no_log: true
   notify: restart mysqld exporter
 

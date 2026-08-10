@@ -31,6 +31,13 @@
     remote_src: true
   when: not node_exporter_bin.stat.exists
 
+- name: Остановить и отключить пакетный prometheus-node-exporter (конфликт порта 9100)
+  ansible.builtin.systemd:
+    name: prometheus-node-exporter
+    state: stopped
+    enabled: false
+  failed_when: false
+
 - name: Развернуть systemd-юнит node_exporter
   ansible.builtin.copy:
     dest: /etc/systemd/system/node_exporter.service
