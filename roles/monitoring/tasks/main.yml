@@ -98,7 +98,45 @@
     DEBIAN_FRONTEND: noninteractive
   when: grafana_apt.rc != 0
 
-- name: Конфигурация Prometheus (scrape-таргеты)
+- name: Каталог правил алертов Prometheus
+  ansible.builtin.file:
+    path: /etc/prometheus/rules
+    state: directory
+    mode: "0755"
+
+- name: Правила алертов (MySQLDown / InstanceDown / DiskAlmostFull)
+  ansible.builtin.copy:
+    dest: /etc/prometheus/rules/infra.rules.yml
+    mode: "0644"
+    content: |
+      # Ansible managed
+      groups:
+        - name: infra
+          interval: 30s
+          rules:
+            - alert: MySQLDown
+              expr: mysql_up == 0
+              for: 1m
+              labels:
+                severity: critical
+              annotations:
+                summary: "MySQL down on {{ '{{ $labels.instance }}' }}"
+            - alert: InstanceDown
+              expr: up == 0
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: "Target {{ '{{ $labels.job }}' }}/{{ '{{ $labels.instance }}' }} is down"
+            - alert: DiskAlmostFull
+              expr: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 > 85
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: "Disk / above 85% on {{ '{{ $labels.instance }}' }}"
+
+- name: Конфигурация Prometheus (scrape-таргеты + rule_files)
   ansible.builtin.copy:
     dest: /etc/prometheus/prometheus.yml
     mode: "0644"
@@ -106,14 +144,15 @@
       # Ansible managed
       global:
         scrape_interval: 15s
-
+      rule_files:
+        - /etc/prometheus/rules/*.yml
       scrape_configs:
         - job_name: prometheus
           static_configs:
-            - targets: ["localhost:{{ prometheus_port }}"]
+            - targets: ["localhost:9090"]
         - job_name: node
           static_configs:
-            - targets: ["localhost:{{ node_exporter_port }}"]
+            - targets: ["localhost:9100"]
         - job_name: mysqld
           static_configs:
             - targets: ["localhost:9101"]

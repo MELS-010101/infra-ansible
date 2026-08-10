@@ -169,3 +169,10 @@
       find "{{ mysql_backup_dir }}" -maxdepth 1 -type f -name 'all-*.sql.gz' -delete
     fi
   changed_when: false
+
+- name: Дамп при загрузке (если стенд был выключен в 02:30)
+  ansible.builtin.cron:
+    name: mysql backup on reboot
+    user: root
+    special_time: reboot
+    job: "/usr/local/bin/mysql-backup.sh >> /var/log/db_backup.log 2>&1"

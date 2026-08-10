@@ -2,20 +2,21 @@
 
 Портфолийный проект конфигурационного менеджмента: production-подобный стенд
 по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
-runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana
-с дашбордом из кода), **шифрованные бэкапы с ротацией и отказоустойчивостью**,
-**security-hardening** (fail2ban, least-privilege, эквивалент mysql_secure_installation),
-секреты в **Ansible Vault**, **CI на GitHub Actions** и **Python-приёмка**,
-которая после каждого прогона доказывает, что стенд реально здоров.
+runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana:
+дашборд и алерт-правила из кода), **шифрованные бэкапы с ротацией и
+отказоустойчивостью**, **security-hardening** (fail2ban, least-privilege,
+эквивалент mysql_secure_installation), секреты в **Ansible Vault**,
+**CI на GitHub Actions** и **Python-приёмка**, которая после каждого прогона
+доказывает, что стенд реально здоров.
 
 Одним прогоном покрываются семь направлений:
 
 1. **Server Baseline** — апдейты, админ-юзер с ключом, SSH, UFW, автопатчи безопасности, fail2ban.
 2. **Configuration Management** — Nginx + PHP-FPM 8.1, СУБД (MySQL/MariaDB, автоопределение), Docker Engine с ротацией логов.
 3. **Security** — hardening СУБД, прикладной пользователь с минимальными привилегиями, раздельные учётки.
-4. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090), Grafana (:3000) + provisioned-дашборд.
-5. **Maintenance** — ежедневные шифрованные дампы всех баз, ротация 7 дней, лог, алерты, `block/rescue/always`.
-6. **Acceptance** — Python-скрипт (stdlib) проверяет сервисы, HTTP, метрики и свежесть бэкапа; плейбук падает, если стенд нездоров.
+4. **Observability** — Node Exporter (:9100), MySQLd Exporter (:9101), Prometheus (:9090) с алерт-правилами, Grafana (:3000) + provisioned-дашборд.
+5. **Maintenance** — ежедневные шифрованные дампы всех баз (+ дамп при загрузке), ротация 7 дней, лог, алерты, `block/rescue/always`.
+6. **Acceptance** — Python-скрипт (stdlib) проверяет сервисы, HTTP, метрики, алерт-правила и свежесть бэкапа; плейбук падает, если стенд нездоров.
 7. **CI** — ansible-lint + syntax-check + compile-check Python на каждый push/PR.
 
 ---
@@ -30,10 +31,10 @@ runtime **Docker**, полная **наблюдаемость** (Node Exporter +
 | **Docker Engine** | docker-ce, если уже установлен; иначе docker.io (guard от конфликта) |
 | **Prometheus Node Exporter** | метрики ОС, :9100 |
 | **Prometheus MySQLd Exporter** | метрики СУБД, :9101 (нативный пакет + systemd drop-in) |
-| **Prometheus Server** | сбор метрик, :9090; scrape-таргеты: prometheus/node/mysqld |
+| **Prometheus Server** | сбор метрик, :9090; scrape-таргеты + rule_files с алертами |
 | **Grafana** | визуализация, :3000; datasource и дашборд provisioned из кода |
 | **fail2ban** | защита SSH от брутфорса (jail sshd, 5 попыток, бан 10 минут) |
-| **infra_check.py (Python)** | приёмка стенда: сервисы, HTTP, `mysql_up`, свежесть бэкапа; только stdlib |
+| **infra_check.py (Python)** | приёмка стенда: сервисы, HTTP, `mysql_up`, алерт-правила, свежесть бэкапа; только stdlib |
 | **Ansible Vault** | шифрование секретов в репозитории |
 | **UFW** | хостовой файрвол, default deny |
 
@@ -66,8 +67,8 @@ infra-ansible/
     ├── nginx/                  # веб-слой LEMP + статус-страница
     ├── db/                     # СУБД + пользователи + hardening + mysqld_exporter
     ├── docker/                 # Docker Engine (guard) + ротация логов
-    ├── monitoring/             # node_exporter + Prometheus + Grafana + дашборд
-    ├── backup/                 # шифрованные бэкапы, ротация, rescue-алерты
+    ├── monitoring/             # exporters + Prometheus (rules) + Grafana (dashboards)
+    ├── backup/                 # шифрованные бэкапы, ротация, rescue-алерты, @reboot
     └── acceptance/             # Python-приёмка стенда (files/infra_check.py)
 ```
 
@@ -88,11 +89,15 @@ infra-ansible/
   (fallback, если пакета нет в apt). Наблюдаемость не зависит от Docker Hub.
 - **Дашборд как код.** Grafana подхватывает datasource и дашборд LEMP Overview
   через provisioning-файлы и JSON из роли — без ручных кликов, на любом хосте.
+- **Алертинг как код.** Prometheus грузит правила из `/etc/prometheus/rules/*.yml`,
+  развёрнутых ролью: `MySQLDown` (mysql_up==0, 1м), `InstanceDown` (up==0, 2м),
+  `DiskAlmostFull` (диск / > 85%, 5м). Приёмка проверяет загрузку правил
+  через `/api/v1/rules`.
 - **Приёмка после каждого прогона.** Финальный play гоняет
   `/usr/local/bin/infra_check.py`: сервисы active (с ретраями против окна
-  перезапуска), HTTP 200, `mysql_up 1`, бэкап свежее 26 часов. Ненулевой код
-  роняет плейбук — «зелёный RECAP» означает «стенд реально здоров», а не
-  «задачи отработали».
+  перезапуска), HTTP 200, `mysql_up 1`, алерт-правила загружены, бэкап свежее
+  26 часов. Ненулевой код роняет плейбук — «зелёный RECAP» означает
+  «стенд реально здоров», а не «задачи отработали».
 - **Секреты со спецсимволами.** Пароль из vault с `#` и `!` в DSN уходит через
   `urlencode`, в backup-`.cnf` — в кавычках; задачи с секретами — с `no_log: true`;
   файлы с секретами — `0600/0640`.
@@ -119,7 +124,8 @@ infra-ansible/
 - **fail2ban:** jail `sshd` (maxretry 5, бан 10 минут); в WSL гарантируется наличие
   `/var/log/auth.log` (без rsyslog).
 - Бэкапы шифруются `openssl aes-256-cbc -pbkdf2`; ключ `/etc/mysql-backup.key` (0600)
-  в git не попадает; старые **незашифрованные** дампы удаляются после появления шифрованного.
+  в git не попадает; старые **незашифрованные** дампы удаляются после появления
+  шифрованного; cron: ежедневно 02:30 + `@reboot` (стенд мог быть выключен ночью).
 - Docker: ротация логов контейнеров через `daemon.json` (10m × 3 файла, `validate`
   через `json.tool` до записи).
 - UFW: default deny; разрешены SSH, HTTP/HTTPS и порты метрик.
@@ -164,6 +170,7 @@ curl -sI localhost | head -n 1                        # HTTP/1.1 200
 curl -s localhost:9100/metrics | head                 # node
 curl -s localhost:9101/metrics | grep '^mysql_up'     # mysql_up 1
 curl -s localhost:9090/-/healthy                      # Prometheus is Healthy
+curl -s localhost:9090/api/v1/rules | grep -o '"name":"MySQLDown"'  # алерты загружены
 curl -s localhost:3000/api/health                     # Grafana ok
 
 sudo fail2ban-client status sshd                      # Jail list: sshd
@@ -172,13 +179,17 @@ MYSQL_PWD='<пароль app_user>' mysql -u app_user -h 127.0.0.1 -e "SHOW DATA
 
 ls -lh /var/backups/mysql                             # all-*.sql.gz.enc
 tail -n 3 /var/log/db_backup.log                      # OK: ...
-crontab -l | grep mysql-backup                        # 30 2 * * *
+crontab -l | grep mysql-backup                        # 30 2 * * * + @reboot
 ```
 
 **Grafana:** `http://localhost:3000`, логин `admin`, пароль `admin`
 (или задай `vault_grafana_admin_password` в vault; смена пароля —
 `grafana-cli admin reset-admin-password 'new'`). Дашборд **LEMP Overview**
 (CPU/RAM/Disk/Network/MySQL) появляется автоматически из кода.
+
+**Демо алерта:** `systemctl stop mysql` → через ~1 минуту в Prometheus
+(`:9090` → Alerts) горит `MySQLDown FIRING` → `systemctl start mysql` → алерт
+гаснет. Приёмка в это время валит плейбук — так и задумано.
 
 **Восстановление БД из шифрованного бэкапа:**
 
@@ -214,7 +225,7 @@ TELEGRAM_CHAT_ID=-100...
 
 ## Roadmap (запланировано, в коде ещё нет)
 
-- provisioned-алерты Grafana (threshold + notification policies);
+- Alertmanager + отправка алертов в Telegram (сейчас алерты видны в UI Prometheus);
 - docker-compose-вариант observability для сред с доступным Docker Hub;
 - вынос acceptance в отдельный шаг CI с артефактом-отчётом.
 

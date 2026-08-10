@@ -50,6 +50,8 @@ st, body = http("http://localhost:9101/metrics")
 check("mysqld_exporter mysql_up 1", st == 200 and "mysql_up 1" in body)
 st, _ = http("http://localhost:9090/-/healthy")
 check("prometheus healthy", st == 200)
+st, body = http("http://localhost:9090/api/v1/rules")
+check("prometheus alert rules loaded", st == 200 and "MySQLDown" in body)
 st, _ = http("http://localhost:3000/api/health")
 check("grafana health", st == 200)
 
