@@ -1,5 +1,7 @@
 # infra-ansible — автоматизация инфраструктуры на Ansible
 
+![CI](https://github.com/MELS-010101/infra-ansible/workflows/CI/badge.svg)
+
 Портфолийный проект конфигурационного менеджмента: production-подобный стенд
 по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
 runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana:
