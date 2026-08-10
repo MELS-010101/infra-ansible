@@ -28,7 +28,7 @@ jobs:
         run: printf 'ci-dummy' > .vault_pass
 
       - name: Python compile-check acceptance-скрипта
-        run: python3 -m py_compile roles/acceptance/files/infra_check.py
+        run: python3 -m py_compile roles/acceptance/files/infra_check.py roles/monitoring/files/alert_notify.py
 
       - name: Syntax check
         run: ansible-playbook -i inventory/inventory.ini playbooks/site.yml --syntax-check

@@ -250,3 +250,34 @@
           options:
             path: /etc/grafana/dashboards
   notify: restart grafana
+
+# --- Алерты в Telegram: bridge Prometheus -> Telegram (stdlib) ---
+- name: Развернуть bridge алертов alert_notify.py
+  ansible.builtin.copy:
+    src: alert_notify.py
+    dest: /usr/local/bin/alert_notify.py
+    mode: "0755"
+
+- name: Каталог состояния bridge алертов
+  ansible.builtin.file:
+    path: /var/lib/infra-alerts
+    state: directory
+    mode: "0755"
+
+- name: Конфигурация Telegram из vault (если задана)
+  ansible.builtin.copy:
+    dest: /etc/infra-alerts.conf
+    mode: "0600"
+    content: |
+      # Ansible managed (секреты из vault)
+      TELEGRAM_TOKEN={{ vault_telegram_token }}
+      TELEGRAM_CHAT_ID={{ vault_telegram_chat_id }}
+  no_log: true
+  when: (vault_telegram_token | default('')) | length > 0
+
+- name: Опрашивать алерты каждую минуту (cron)
+  ansible.builtin.cron:
+    name: infra alerts to telegram
+    user: root
+    minute: "*"
+    job: "/usr/local/bin/alert_notify.py >> /var/log/infra_alerts.log 2>&1"
