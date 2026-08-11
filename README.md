@@ -22,6 +22,12 @@ least-privilege, эквивалент mysql_secure_installation), секреты
 
 ---
 
+## Как это выглядит
+
+![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
+
+Дашборд LEMP Overview provisioned из кода: MySQL up, CPU, RAM, Disk, Network, MySQL connections.
+
 ## Стек
 
 | Компонент | Назначение |
