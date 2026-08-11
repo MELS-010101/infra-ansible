@@ -1,0 +1,9 @@
+# Ansible managed
+services:
+  demo-app:
+    build: .
+    image: infra-demo-app:latest
+    container_name: demo-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
