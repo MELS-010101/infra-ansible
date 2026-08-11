@@ -1,5 +1,7 @@
 # infra-ansible — автоматизация инфраструктуры на Ansible
 
+![CI](https://github.com/MELS-010101/infra-ansible/actions/workflows/ci.yml/badge.svg) ![License](https://img.shields.io/badge/License-MIT-yellow.svg) ![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg) ![Ansible](https://img.shields.io/badge/Ansible-%3E%3D2.14-ee0000.svg?logo=ansible)
+
 Портфолийный проект конфигурационного менеджмента: production-подобный стенд
 по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
 runtime **Docker**, полная **наблюдаемость** (Node Exporter + Prometheus + Grafana:
