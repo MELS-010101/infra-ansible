@@ -147,3 +147,18 @@
     creates: /var/log/auth.log
   notify: restart fail2ban
   tags: [baseline, security]
+
+- name: Logrotate для логов бэкапов и алертов
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/infra-ansible
+    mode: "0644"
+    content: |
+      /var/log/db_backup.log /var/log/infra_alerts.log {
+          weekly
+          rotate 4
+          compress
+          delaycompress
+          missingok
+          notifempty
+          copytruncate
+      }
