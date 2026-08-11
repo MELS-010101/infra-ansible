@@ -30,6 +30,12 @@ least-privilege, эквивалент mysql_secure_installation), секреты
 
 Дашборд LEMP Overview provisioned из кода: MySQL up, CPU, RAM, Disk, Network, MySQL connections.
 
+## Боевой алерт в Telegram
+
+![Telegram alert demo](docs/screenshots/telegram-alert-demo.jpg)
+
+`systemctl stop mysql` → через ~1–2 минуты 🚨 [CRITICAL] MySQLDown; `systemctl start mysql` → ✅ RESOLVED. Bridge опрашивает `/api/v1/alerts` раз в минуту, дедуплицирует по файлу состояния, ретраит отправку при сетевых сбоях.
+
 ## Стек
 
 | Компонент | Назначение |
