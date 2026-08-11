@@ -52,6 +52,14 @@
   roles:
     - backup
 # 5) Приёмка: стенд проверяет себя сам (Python, stdlib). Тег: acceptance
+# 5) Демо-приложение в Docker (тег: app)
+- name: App
+  hosts: web
+  become: yes
+  tags: app
+  roles:
+    - app
+
 - name: Acceptance
   hosts: all
   become: yes

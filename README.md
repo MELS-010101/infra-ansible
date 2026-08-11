@@ -30,6 +30,7 @@ least-privilege, эквивалент mysql_secure_installation), секреты
 | **MySQL / MariaDB** | СУБД; flavor определяется автоматически по dpkg |
 | **Nginx + PHP-FPM 8.1** | веб-слой LEMP |
 | **Docker Engine** | docker-ce, если уже установлен; иначе docker.io (guard от конфликта) |
+| **demo-app (Docker)** | контейнеризованное демо-приложение :8080 (свой Dockerfile + compose), nginx-proxy через `/app/` |
 | **Prometheus Node Exporter** | метрики ОС, :9100 (собственный юнит; пакетный отключён guard'ом) |
 | **Prometheus MySQLd Exporter** | метрики СУБД, :9101 (нативный пакет + systemd drop-in) |
 | **Prometheus Server** | сбор метрик, :9090; scrape-таргеты + rule_files с алертами |
@@ -49,6 +50,7 @@ least-privilege, эквивалент mysql_secure_installation), секреты
 ```
 infra-ansible/
 ├── ansible.cfg                 # инвентарь, роли, путь к vault-паролю
+├── ARCHITECTURE.md             # схема стенда, порты, учётки СУБД, потоки
 ├── requirements.yml            # внешние коллекции
 ├── .ansible-lint               # профиль lint для CI и локальной разработки
 ├── .github/workflows/ci.yml    # CI: syntax-check + ansible-lint + py_compile

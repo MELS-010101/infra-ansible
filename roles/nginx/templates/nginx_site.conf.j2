@@ -20,6 +20,11 @@ server {
     error_log  {{ nginx_error_log }};
 
     # Отдача статики: если файла нет — вернуть 404
+    location /app/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
+
     location / {
         try_files $uri $uri/ =404;
     }
