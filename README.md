@@ -34,6 +34,17 @@ terraform init && terraform apply -auto-approve
 curl localhost:8081/
 ```
 
+## Remote state (MinIO)
+
+Стейт Terraform хранится в S3-совместимом хранилище: локально — MinIO (бакет `terraform-state`), в проде — реальный S3 + DynamoDB для блокировок.
+
+```bash
+bash scripts/bootstrap-minio.sh
+cd terraform && terraform init -migrate-state   # одноразовая миграция
+```
+
+Консоль MinIO: http://localhost:9001 (minioadmin/minioadmin).
+
 ## Как это выглядит
 
 ![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
