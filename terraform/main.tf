@@ -1,19 +1,9 @@
-# Образ собирается из того же Dockerfile, что использует Ansible
-resource "docker_image" "app" {
-  name = "infra-demo-app-tf:latest"
-  build {
-    context = "../roles/app/files"
-  }
-  keep_locally = true
-}
+# Контейнерный слой описан модулем; корень передаёт параметры
+module "demo_app_tf" {
+  source = "./modules/app"
 
-resource "docker_container" "demo_app_tf" {
-  name    = var.container_name
-  image   = docker_image.app.image_id
-  restart = "unless-stopped"
-
-  ports {
-    internal = 8080
-    external = var.host_port
-  }
+  image_name     = "infra-demo-app-tf:latest"
+  build_context  = "../roles/app/files"
+  container_name = var.container_name
+  host_port      = var.host_port
 }

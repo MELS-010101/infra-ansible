@@ -1,7 +1,7 @@
 output "app_url" {
-  value = "http://localhost:${var.host_port}/"
+  value = module.demo_app_tf.url
 }
 
 output "container_id" {
-  value = docker_container.demo_app_tf.id
+  value = module.demo_app_tf.container_id
 }
