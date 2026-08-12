@@ -24,6 +24,16 @@ least-privilege, эквивалент mysql_secure_installation), секреты
 
 ---
 
+## Terraform (контейнерный слой)
+
+Контейнерная часть стенда описана как IaC в `terraform/`: Terraform собирает образ из **того же Dockerfile**, что использует Ansible, и поднимает `demo-app-tf` на :8081.
+
+```bash
+cd terraform
+terraform init && terraform apply -auto-approve
+curl localhost:8081/
+```
+
 ## Как это выглядит
 
 ![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
