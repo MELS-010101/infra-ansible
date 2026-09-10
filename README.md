@@ -285,3 +285,5 @@ MIT — используйте и адаптируйте свободно.
 
 **MELS** — демонстрация навыков системного администрирования и конфигурационного
 менеджмента (путь в DevOps).
+## Known issues
+- Grafana Loki datasource health-check shows "Unable to connect": Grafana sends service query `vector(1)`, which Loki 2.6 (deprecated loki-stack chart) cannot parse. Log queries work (HTTP 200, lines returned). Non-critical; migration path: official loki chart / Loki 3.x.
