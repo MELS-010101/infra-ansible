@@ -1,7 +1,7 @@
 replicas: 3
 image:
-  name: infra-demo-app
-  tag: traced2
+  name: ghcr.io/mels-010101/infra-demo-app
+  tag: 7dae19016f430c462e6dfb0dee8b3fd0528cc603
 service:
   port: 8080
   nodePort: 30080
