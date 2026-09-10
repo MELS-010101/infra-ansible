@@ -35,3 +35,20 @@ jobs:
 
       - name: Ansible-lint
         run: ansible-lint
+
+  build:
+    name: docker build + smoke test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t infra-demo-app:ci roles/app/files/
+
+      - name: Smoke test
+        run: |
+          docker run -d --name demo -p 8085:8080 infra-demo-app:ci
+          sleep 3
+          curl -sf http://127.0.0.1:8085/ | grep -q '"app"'
+          docker rm -f demo
