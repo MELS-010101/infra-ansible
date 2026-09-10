@@ -1,0 +1,9 @@
+replicas: 2
+image:
+  name: infra-demo-app
+  tag: latest
+service:
+  port: 8080
+  nodePort: 30080
+config:
+  APP_NAME: infra-demo-k8s
