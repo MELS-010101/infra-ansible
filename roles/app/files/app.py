@@ -5,6 +5,7 @@ import os
 import socket
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+APP_NAME = os.environ.get("APP_NAME", "infra-demo")
 
 START = time.time()
 COUNT = 0
@@ -15,7 +16,7 @@ class H(BaseHTTPRequestHandler):
         global COUNT
         COUNT += 1
         body = json.dumps({
-            "app": "infra-demo",
+            "app": APP_NAME,
             "host": socket.gethostname(),
             "pid": os.getpid(),
             "uptime_sec": int(time.time() - START),

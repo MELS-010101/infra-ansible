@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-app-config
+data:
+  APP_NAME: "infra-demo-k8s"
