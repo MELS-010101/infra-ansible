@@ -23,6 +23,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-config
+          env:
+{{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+{{- end }}
           readinessProbe:
             httpGet:
               path: /
