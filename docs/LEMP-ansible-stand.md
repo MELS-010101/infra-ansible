@@ -46,14 +46,17 @@ cd terraform && terraform init -migrate-state   # одноразовая миг�
 
 ## Как это выглядит
 
-![Grafana LEMP Overview](screenshots/grafana-lemp-overview.png)
-*Grafana, дашборд LEMP Overview: MySQL up, CPU, RAM, Disk, Network, MySQL connections — всё provisioned из кода*
+| Grafana: дашборд LEMP Overview | Prometheus: load1 / MySQL |
+|:---:|:---:|
+| <img src="screenshots/grafana-lemp-overview.png" width="100%"> | <img src="screenshots/prometheus-node-load1.png" width="100%"> |
+| *MySQL up, CPU, RAM, Disk, Network — provisioned из кода* | *пики load1 во время прогонов, MySQL connections/queries* |
 
-![Prometheus: node load](screenshots/prometheus-node-load1.png)
-*Prometheus: load1 по ядрам — пики во время прогонов плейбука и приёмки*
+| Prometheus: сеть и MySQL-метрики |
+|:---:|
+| <img src="screenshots/prometheus-network-mysql.png" width="100%"> |
+| *трафик хоста во время приёмки и бэкапов* |
 
-![Prometheus: network & MySQL](screenshots/prometheus-network-mysql.png)
-*Prometheus: сетевой трафик хоста и MySQL-метрики (connections, queries, buffers)*
-
-![Telegram alert demo](screenshots/telegram-alert-demo.jpg)
-*Боевой алерт в Telegram: stop mysql → 🚨 CRITICAL MySQLDown → start mysql → ✅ RESOLVED*
+<div align="center">
+<img src="screenshots/telegram-alert-demo.jpg" width="320"><br>
+<em>Боевой алерт: stop mysql → 🚨 CRITICAL MySQLDown → start → ✅ RESOLVED</em>
+</div>

@@ -96,14 +96,17 @@ MIT — используйте и адаптируйте свободно.
 **MELS** — демонстрация навыков системного администрирования и путь в DevOps.
 ## Screenshots
 
-![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
-*Grafana, дашборд LEMP Overview: MySQL up, CPU, RAM, Disk, Network, MySQL connections*
+| Grafana: дашборд LEMP Overview | Prometheus: load1 / MySQL |
+|:---:|:---:|
+| <img src="docs/screenshots/grafana-lemp-overview.png" width="100%"> | <img src="docs/screenshots/prometheus-node-load1.png" width="100%"> |
+| *дашборд provisioned из кода* | *пики load1 во время прогонов плейбука* |
 
-![Prometheus: node load](docs/screenshots/prometheus-node-load1.png)
-*Prometheus: load1 по ядрам — пики во время прогонов плейбука*
+| Prometheus: сеть и MySQL-метрики |
+|:---:|
+| <img src="docs/screenshots/prometheus-network-mysql.png" width="100%"> |
+| *трафик хоста во время приёмки и бэкапов* |
 
-![Prometheus: network & MySQL](docs/screenshots/prometheus-network-mysql.png)
-*Prometheus: сетевой трафик хоста и MySQL-метрики*
-
-![Telegram alert demo](docs/screenshots/telegram-alert-demo.jpg)
-*Боевой алерт: stop mysql → CRITICAL MySQLDown → start → RESOLVED*
+<div align="center">
+<img src="docs/screenshots/telegram-alert-demo.jpg" width="320"><br>
+<em>Боевой алерт: stop mysql → 🚨 CRITICAL MySQLDown → start → ✅ RESOLVED</em>
+</div>
