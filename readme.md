@@ -51,6 +51,7 @@ flowchart LR
 - **v1.6** — трейсы: Tempo + OpenTelemetry-инструментация приложения
 - **v1.7** — образы в GHCR: CI publish + pull кластером из реестра
 - **v1.8** — CD-бот: авто-bump тега в values после publish; алерты по логам: Loki → Grafana Alerting → Telegram
+- **v1.9** — autoscaling: HPA по CPU (requests/limits, min2/max6); мир GitOps и HPA через ignoreDifferences
 
 ## Структура репо
 
