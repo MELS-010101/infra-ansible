@@ -94,3 +94,9 @@ MIT — используйте и адаптируйте свободно.
 ## Автор
 
 **MELS** — демонстрация навыков системного администрирования и путь в DevOps.
+## Screenshots
+
+![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
+![Prometheus: node load](docs/screenshots/prometheus-node-load1.png)
+![Prometheus: network & MySQL](docs/screenshots/prometheus-network-mysql.png)
+![Telegram alert demo](docs/screenshots/telegram-alert-demo.jpg)

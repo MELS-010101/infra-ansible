@@ -284,3 +284,10 @@ MIT — используйте и адаптируйте свободно.
 менеджмента (путь в DevOps).
 ## Known issues
 - Grafana Loki datasource health-check shows "Unable to connect": Grafana sends service query `vector(1)`, which Loki 2.6 (deprecated loki-stack chart) cannot parse. Log queries work (HTTP 200, lines returned). Non-critical; migration path: official loki chart / Loki 3.x.
+
+## Как это выглядит
+
+![Grafana LEMP Overview](screenshots/grafana-lemp-overview.png)
+![Prometheus: node load](screenshots/prometheus-node-load1.png)
+![Prometheus: network & MySQL](screenshots/prometheus-network-mysql.png)
+![Telegram alert demo](screenshots/telegram-alert-demo.jpg)
