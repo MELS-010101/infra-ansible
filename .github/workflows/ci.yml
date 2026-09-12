@@ -76,3 +76,22 @@ jobs:
           tags: |
             ghcr.io/mels-010101/infra-demo-app:latest
             ghcr.io/mels-010101/infra-demo-app:${{ github.sha }}
+
+  update-tag:
+    name: bump image tag in values (cd-bot)
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: publish
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: bump tag and push
+        run: |
+          sed -i "s|tag: .*|tag: \"${GITHUB_SHA}\"|" charts/demo-app/values.yaml
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add charts/demo-app/values.yaml
+          git diff --cached --quiet && echo "no change, skip" && exit 0
+          git commit -m "ci: bump demo-app image tag to ${GITHUB_SHA::7} [skip ci]"
+          git push
