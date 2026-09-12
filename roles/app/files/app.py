@@ -32,6 +32,13 @@ class H(BaseHTTPRequestHandler):
         with tracer.start_as_current_span('GET ' + self.path) as span:
             span.set_attribute('http.method', 'GET')
             span.set_attribute('http.target', self.path)
+            if self.path == '/boom':
+                print('ERROR: boom requested, returning 500', flush=True)
+                self.send_response(500)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                span.set_attribute('http.status_code', 500)
+                return
             body = json.dumps({
                 'app': APP_NAME,
                 'host': socket.gethostname(),
