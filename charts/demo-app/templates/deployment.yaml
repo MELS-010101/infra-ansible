@@ -28,6 +28,8 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
 {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
           readinessProbe:
             httpGet:
               path: /
