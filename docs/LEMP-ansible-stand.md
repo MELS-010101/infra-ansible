@@ -1,6 +1,5 @@
 # infra-ansible — автоматизация инфраструктуры на Ansible
 
-![CI](https://github.com/MELS-010101/infra-ansible/actions/workflows/ci.yml/badge.svg) ![License](https://img.shields.io/badge/License-MIT-yellow.svg) ![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg) ![Ansible](https://img.shields.io/badge/Ansible-%3E%3D2.14-ee0000.svg?logo=ansible)
 
 Портфолийный проект конфигурационного менеджмента: production-подобный стенд
 по best practices — подготовка ОС, стек **Nginx + PHP-FPM + MySQL/MariaDB** (LEMP),
@@ -47,13 +46,11 @@ cd terraform && terraform init -migrate-state   # одноразовая миг�
 
 ## Как это выглядит
 
-![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
 
 Дашборд LEMP Overview provisioned из кода: MySQL up, CPU, RAM, Disk, Network, MySQL connections.
 
 ## Боевой алерт в Telegram
 
-![Telegram alert demo](docs/screenshots/telegram-alert-demo.jpg)
 
 `systemctl stop mysql` → через ~1–2 минуты 🚨 [CRITICAL] MySQLDown; `systemctl start mysql` → ✅ RESOLVED. Bridge опрашивает `/api/v1/alerts` раз в минуту, дедуплицирует по файлу состояния, ретраит отправку при сетевых сбоях.
 
