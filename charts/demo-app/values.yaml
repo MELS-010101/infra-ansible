@@ -1,7 +1,7 @@
 replicas: 3
 image:
   name: ghcr.io/mels-010101/infra-demo-app
-  tag: "e7160ab39c8919a805a4d1949256397dba74f108"
+  tag: "90f41d12a6ac0da7d7d01cfcf4e78fee55521d86"
 service:
   port: 8080
   nodePort: 30080
