@@ -40,7 +40,7 @@ flowchart LR
 ## Observability
 
 - **Метрики**: Prometheus + Grafana (дашборд LEMP Overview), алерты в Telegram (MySQLDown / InstanceDown / DiskAlmostFull).
-- **Логи**: Promtail → Loki; логи приложения несут trace_id; фильтрация по namespace/pod/container в Explore.
+- **Логи**: Promtail → Loki; логи приложения несут trace_id; фильтрация по namespace/pod/container в Explore.; алерты по ERROR-строкам уходят в Telegram
 - **Трейсы**: OpenTelemetry в приложении → Tempo; waterfall по каждому запросу; переход лог → трейс по trace_id.
 
 ## Releases
@@ -50,6 +50,7 @@ flowchart LR
 - **v1.5** — логи: Loki + Promtail + datasource в Grafana
 - **v1.6** — трейсы: Tempo + OpenTelemetry-инструментация приложения
 - **v1.7** — образы в GHCR: CI publish + pull кластером из реестра
+- **v1.8** — CD-бот: авто-bump тега в values после publish; алерты по логам: Loki → Grafana Alerting → Telegram
 
 ## Структура репо
 
