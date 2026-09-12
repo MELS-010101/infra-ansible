@@ -97,6 +97,13 @@ MIT — используйте и адаптируйте свободно.
 ## Screenshots
 
 ![Grafana LEMP Overview](docs/screenshots/grafana-lemp-overview.png)
+*Grafana, дашборд LEMP Overview: MySQL up, CPU, RAM, Disk, Network, MySQL connections*
+
 ![Prometheus: node load](docs/screenshots/prometheus-node-load1.png)
+*Prometheus: load1 по ядрам — пики во время прогонов плейбука*
+
 ![Prometheus: network & MySQL](docs/screenshots/prometheus-network-mysql.png)
+*Prometheus: сетевой трафик хоста и MySQL-метрики*
+
 ![Telegram alert demo](docs/screenshots/telegram-alert-demo.jpg)
+*Боевой алерт: stop mysql → CRITICAL MySQLDown → start → RESOLVED*
