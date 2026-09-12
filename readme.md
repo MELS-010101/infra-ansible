@@ -96,6 +96,7 @@ MIT — используйте и адаптируйте свободно.
 ## Автор
 
 **MELS** — демонстрация навыков системного администрирования и путь в DevOps.
+
 ## Screenshots
 
 | Grafana: дашборд LEMP Overview | Prometheus: load1 / MySQL |
@@ -103,12 +104,18 @@ MIT — используйте и адаптируйте свободно.
 | <img src="docs/screenshots/grafana-lemp-overview.png" width="100%"> | <img src="docs/screenshots/prometheus-node-load1.png" width="100%"> |
 | *дашборд provisioned из кода* | *пики load1 во время прогонов плейбука* |
 
-| Prometheus: сеть и MySQL-метрики |
-|:---:|
-| <img src="docs/screenshots/prometheus-network-mysql.png" width="100%"> |
-| *трафик хоста во время приёмки и бэкапов* |
+| Prometheus: сеть и MySQL-метрики | HPA autoscaling (реплики + CPU) |
+|:---:|:---:|
+| <img src="docs/screenshots/prometheus-network-mysql.png" width="100%"> | <img src="docs/screenshots/hpa-scaling.png" width="100%"> |
+| *трафик хоста во время приёмки* | *HPA: 2→6 подов под нагрузкой* |
 
 <div align="center">
 <img src="docs/screenshots/telegram-alert-demo.jpg" width="320"><br>
 <em>Боевой алерт: stop mysql → 🚨 CRITICAL MySQLDown → start → ✅ RESOLVED</em>
 </div>
+
+## Roadmap
+
+- [ ] Argo Rollouts: canary-деплой
+- [ ] SLO и burn-rate алерты
+- [ ] Helm lint + kubeconform в CI

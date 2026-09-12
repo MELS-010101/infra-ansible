@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  ignoreDifferences:
+  - group: apps
+    kind: DaemonSet
+    jsonPointers:
+    - /spec/template
+    - /spec/updateStrategy
+    - /spec/selector
+  - group: ""
+    kind: ConfigMap
+    jsonPointers:
+    - /data
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "90.1.1"
+    helm:
+      releaseName: monitoring
+      values: |
+        grafana:
+          enabled: false
+        alertmanager:
+          enabled: false
+        prometheusOperator:
+          enabled: true
+        prometheus:
+          prometheusSpec:
+            storageSpec:
+              emptyDir: {}
+        kube-state-metrics:
+          enabled: true
+        nodeExporter:
+          enabled: false
+          serviceMonitor:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
