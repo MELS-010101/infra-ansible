@@ -53,6 +53,14 @@ jobs:
           curl -sf http://127.0.0.1:8085/ | grep -q '"app"'
           docker rm -f demo
 
+      - name: Helm lint
+        run: |
+          helm lint charts/demo-app
+
+      - name: Validate Kubernetes manifests with kubeconform
+        run: |
+          helm template demo-app charts/demo-app | docker run -i ghcr.io/yannh/kubeconform:latest -strict -summary
+
   publish:
     name: push image to GHCR
     runs-on: ubuntu-22.04
