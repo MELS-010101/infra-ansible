@@ -53,6 +53,7 @@ flowchart LR
 - **v1.8** — CD-бот: авто-bump тега в values после publish; алерты по логам: Loki → Grafana Alerting → Telegram
 - **v1.9** — autoscaling: HPA по CPU (requests/limits, min2/max6); мир GitOps и HPA через ignoreDifferences
 - **v2.0** — Argo Rollouts: canary-деплой (10→30→60→100% трафика), auto-promotion
+- **v2.1** — Quality Gates в CI: helm lint + kubeconform + smoke tests
 
 ## Структура репо
 
