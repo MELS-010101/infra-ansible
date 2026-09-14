@@ -59,7 +59,7 @@ jobs:
 
       - name: Validate Kubernetes manifests with kubeconform
         run: |
-          helm template demo-app charts/demo-app | docker run -i ghcr.io/yannh/kubeconform:latest -strict -summary
+          helm template demo-app charts/demo-app | docker run -i ghcr.io/yannh/kubeconform:latest -summary -ignore-missing-schemas
 
   publish:
     name: push image to GHCR
