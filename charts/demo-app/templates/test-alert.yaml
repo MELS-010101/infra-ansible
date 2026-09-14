@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-test-alert
+  labels:
+    app: {{ .Release.Name }}
+    release: monitoring
+spec:
+  groups:
+    - name: test.rules
+      rules:
+        - alert: TestTelegramAlert
+          expr: vector(1) > 0
+          for: 10s
+          labels:
+            severity: critical
+          annotations:
+            summary: "🚨 ТЕСТ: Если ты это читаешь в Telegram, значит алертинг работает!"
+            description: "Это тестовый алерт для проверки связки Prometheus -> Alertmanager -> Telegram."
