@@ -1,6 +1,6 @@
 # Ansible managed
 FROM python:3.12-alpine
-RUN pip install --no-cache-dir opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+RUN pip install --no-cache-dir opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http prometheus-client
 WORKDIR /app
 COPY app.py /app/app.py
 EXPOSE 8080
