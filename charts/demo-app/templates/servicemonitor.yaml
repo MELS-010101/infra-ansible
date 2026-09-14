@@ -11,7 +11,7 @@ spec:
     matchLabels:
       app: {{ .Release.Name }}
   endpoints:
-    - targetPort: 8080
+    - port: http
       path: /metrics
       interval: 15s
       relabelings:
