@@ -24,5 +24,5 @@ spec:
             alert_type: slo_burn
           annotations:
             summary: "🔥 SLO Burn: Высокая доля ошибок в demo-app"
-            description: "Доля 5xx ошибок составляет {{ \"{{\" }} $value {{ \"}}\" }}, что превышает порог SLO в 1% (99% доступность)."
+            description: "Доля 5xx ошибок составляет {{ "{{" }} $value {{ "}}" }}, что превышает порог SLO в 1% (99% доступность)."
 {{- end }}
