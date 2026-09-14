@@ -1,0 +1,28 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-slo
+  labels:
+    app: {{ .Release.Name }}
+    release: monitoring
+spec:
+  groups:
+    - name: {{ .Release.Name }}.slo.rules
+      rules:
+        - alert: DemoAppHighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="demo-app"}[5m]))
+            ) > 0.01
+          for: 1m
+          labels:
+            severity: critical
+            team: backend
+            alert_type: slo_burn
+          annotations:
+            summary: "🔥 SLO Burn: Высокая доля ошибок в demo-app"
+            description: "Доля 5xx ошибок составляет {{ \"{{\" }} $value {{ \"}}\" }}, что превышает порог SLO в 1% (99% доступность)."
+{{- end }}
