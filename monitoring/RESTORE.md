@@ -1,0 +1,16 @@
+# Восстановление мониторинга demo-app
+
+Порядок применения:
+1. Вставить токен бота в secret-telegram-TEMPLATE.yaml и: kubectl apply -f secret-telegram-TEMPLATE.yaml
+2. kubectl apply -f servicemonitor-demo-app.yaml
+3. kubectl apply -f prometheusrule-demo-app-slo.yaml
+4. kubectl apply -f alertmanagerconfig-am-base.yaml
+
+ДВА КРИТИЧЕСКИХ патча (без них алерты молчат):
+  kubectl patch prometheus kube-prometheus-stack-prometheus -n monitoring --type=merge -p '{"spec":{"ruleSelector":{},"ruleNamespaceSelector":{}}}'
+  kubectl patch alertmanager kube-prometheus-stack-alertmanager -n monitoring --type=merge -p '{"spec":{"alertmanagerConfiguration":{"name":"am-base"}}}'
+
+Грабли, на которые мы наступили (чтобы не повторять):
+- up==0 молчит, если поды исчезли совсем (цель пропадает из discovery). Для 'приложение исчезло' нужно absent(up{...}).
+- Поды demo-app воскрешает Rollout/demo-app: ронять надо сам rollout, а не ReplicaSet.
+- AlertmanagerConfig по умолчанию лишь ДОБАВОК к базовому конфигy (receiver null). Базовым он становится только через spec.alertmanagerConfiguration.name.
