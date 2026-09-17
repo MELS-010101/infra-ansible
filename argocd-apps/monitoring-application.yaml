@@ -11,7 +11,7 @@ spec:
     path: monitoring
     directory:
       recurse: false
-      exclude: 'templates/*;*.json'
+      exclude: 'templates/*'
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
