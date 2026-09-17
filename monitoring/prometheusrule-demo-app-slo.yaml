@@ -83,8 +83,7 @@ spec:
             diagnostic_queries: |
               Pods: kubectl get pods -n default -l app=demo-app -o wide
               Owner: kubectl get rollout demo-app -n default
-              Restarts: kubectl get pods -n default -l app=demo-app -o jsonpath='{range .items[*]}{.metadata.name}{" restarts="}{.status.containerStatuses[0].restartCount}{"
-"}{end}'
+              Restarts: kubectl get pods -n default -l app=demo-app -o jsonpath='{range .items[*]}{.metadata.name}{" restarts="}{.status.containerStatuses[0].restartCount}{"\n"}{end}'
               Events: kubectl get events -n default --sort-by=.lastTimestamp | tail -20
         - alert: ErrorBudgetBurnFast
           expr: slo:demo_app:burn_rate5m > 14.4 and slo:demo_app:burn_rate1h > 14.4
