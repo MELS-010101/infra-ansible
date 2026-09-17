@@ -1,13 +1,6 @@
 apiVersion: monitoring.coreos.com/v1alpha1
 kind: AlertmanagerConfig
 metadata:
-  annotations:
-    argocd.argoproj.io/tracking-id: monitoring:monitoring.coreos.com/AlertmanagerConfig:monitoring/am-base
-    kubectl.kubernetes.io/last-applied-configuration: "{\"apiVersion\":\"monitoring.coreos.com/v1alpha1\",\"kind\":\"AlertmanagerConfig\",\"metadata\":{\"annotations\":{},\"name\":\"am-base\",\"namespace\":\"monitoring\"},\"spec\":{\"receivers\":[{\"name\":\"null\"},{\"name\":\"telegram\",\"telegramConfigs\":[{\"botToken\":{\"key\":\"bot_token\",\"name\":\"telegram-credentials\"},\"chatID\":176747361,\"message\":\"{{
-      if eq .Status \\\"firing\\\" }}\U0001F6A8 \\u003cb\\u003eFIRING\\u003c/b\\u003e{{
-      else }}✅ \\u003cb\\u003eRESOLVED\\u003c/b\\u003e{{ end }}: {{ .GroupLabels.alertname
-      }}\\n{{ range .Alerts }}\\u003cb\\u003e{{ .Annotations.summary }}\\u003c/b\\u003e\\n{{
-      .Annotations.description }}\\n{{ end }}\\n\",\"parseMode\":\"HTML\",\"sendResolved\":true}]}],\"route\":{\"groupBy\":[\"alertname\"],\"groupInterval\":\"1m\",\"groupWait\":\"10s\",\"receiver\":\"telegram\",\"repeatInterval\":\"1h\",\"routes\":[{\"matchers\":[{\"matchType\":\"=~\",\"name\":\"alertname\",\"value\":\"Watchdog|InfoInhibitor|KubeSchedulerDown|KubeProxyDown|KubeAPIDown|KubeControllerManagerDown|KubeEtcdDown|KubeStateMetricsDown|NodeExporterDown|AlertmanagerDown|PrometheusDown|TargetDown.*Node.*\"}],\"receiver\":\"null\"}]}}}\n"
   name: am-base
   namespace: monitoring
 spec:
@@ -19,9 +12,15 @@ spec:
         key: bot_token
         name: telegram-credentials
       chatID: 176747361
-      message: "{{ if eq .Status \"firing\" }}\U0001F6A8 <b>FIRING</b>{{ else }}✅
-        <b>RESOLVED</b>{{ end }}: {{ .GroupLabels.alertname }}\n{{ range .Alerts }}<b>{{
-        .Annotations.summary }}</b>\n{{ .Annotations.description }}\n{{ end }}\n"
+      message: |
+        {{ if eq .Status "firing" }}🚨 <b>FIRING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }}: <b>{{ .GroupLabels.alertname }}</b>
+        {{ range .Alerts }}
+        <b>{{ .Annotations.summary }}</b>
+        {{ .Annotations.description }}
+        {{ if .Annotations.runbook_url }}📖 <a href="{{ .Annotations.runbook_url }}">Runbook</a>{{ end }}
+        {{ if .Annotations.diagnostic_queries }}🔍 <b>Диагностика:</b>
+        {{ .Annotations.diagnostic_queries }}{{ end }}
+        {{ end }}
       parseMode: HTML
       sendResolved: true
   route:
