@@ -7,15 +7,53 @@ metadata:
     release: kube-prometheus-stack
 spec:
   groups:
-    - name: demo-app.slo
+    - name: demo-app.slo.recording
+      interval: 30s
+      rules:
+        - record: slo:demo_app:requests:rate5m
+          expr: sum(rate(http_requests_total{job="demo-app"}[5m]))
+        - record: slo:demo_app:errors:rate5m
+          expr: sum(rate(http_requests_total{job="demo-app", status=~"5.."}[5m])) or vector(0)
+        - record: slo:demo_app:requests:rate30m
+          expr: sum(rate(http_requests_total{job="demo-app"}[30m]))
+        - record: slo:demo_app:errors:rate30m
+          expr: sum(rate(http_requests_total{job="demo-app", status=~"5.."}[30m])) or vector(0)
+        - record: slo:demo_app:requests:rate1h
+          expr: sum(rate(http_requests_total{job="demo-app"}[1h]))
+        - record: slo:demo_app:errors:rate1h
+          expr: sum(rate(http_requests_total{job="demo-app", status=~"5.."}[1h])) or vector(0)
+        - record: slo:demo_app:requests:rate6h
+          expr: sum(rate(http_requests_total{job="demo-app"}[6h]))
+        - record: slo:demo_app:errors:rate6h
+          expr: sum(rate(http_requests_total{job="demo-app", status=~"5.."}[6h])) or vector(0)
+        - record: slo:demo_app:requests:increase30d
+          expr: sum(increase(http_requests_total{job="demo-app"}[30d]))
+        - record: slo:demo_app:errors:increase30d
+          expr: sum(increase(http_requests_total{job="demo-app", status=~"5.."}[30d])) or vector(0)
+        - record: slo:demo_app:error_ratio5m
+          expr: slo:demo_app:errors:rate5m / slo:demo_app:requests:rate5m
+        - record: slo:demo_app:error_ratio30m
+          expr: slo:demo_app:errors:rate30m / slo:demo_app:requests:rate30m
+        - record: slo:demo_app:error_ratio1h
+          expr: slo:demo_app:errors:rate1h / slo:demo_app:requests:rate1h
+        - record: slo:demo_app:error_ratio6h
+          expr: slo:demo_app:errors:rate6h / slo:demo_app:requests:rate6h
+        - record: slo:demo_app:error_ratio30d
+          expr: slo:demo_app:errors:increase30d / slo:demo_app:requests:increase30d
+        - record: slo:demo_app:burn_rate5m
+          expr: slo:demo_app:error_ratio5m / 0.01
+        - record: slo:demo_app:burn_rate30m
+          expr: slo:demo_app:error_ratio30m / 0.01
+        - record: slo:demo_app:burn_rate1h
+          expr: slo:demo_app:error_ratio1h / 0.01
+        - record: slo:demo_app:burn_rate6h
+          expr: slo:demo_app:error_ratio6h / 0.01
+        - record: slo:demo_app:budget_remaining_percent30d
+          expr: clamp_min((1 - slo:demo_app:error_ratio30d / 0.01) * 100, 0)
+    - name: demo-app.slo.alerts
       rules:
         - alert: HighErrorRate
-          expr: |
-            (
-              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[5m]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[5m]))
-            ) > 0.01
+          expr: slo:demo_app:error_ratio5m > 0.01
           for: 2m
           labels:
             severity: critical
@@ -23,12 +61,7 @@ spec:
             summary: "🚨 Высокий error rate в demo-app"
             description: "5xx ошибок больше 1% уже 2 минуты. Текущее значение: {{ $value | humanizePercentage }}"
         - alert: SLOBreach
-          expr: |
-            (
-              sum(rate(http_requests_total{job="demo-app", status!~"5.."}[1h]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[1h]))
-            ) * 100 < 99
+          expr: (1 - slo:demo_app:error_ratio1h) * 100 < 99
           for: 5m
           labels:
             severity: critical
@@ -44,18 +77,7 @@ spec:
             summary: "⚠️ demo-app полностью недоступен"
             description: "Prometheus не видит ни одной живой цели demo-app уже больше минуты."
         - alert: ErrorBudgetBurnFast
-          expr: |
-            (
-              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[5m]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[5m]))
-            ) > (14.4 * 0.01)
-            and
-            (
-              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[1h]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[1h]))
-            ) > (14.4 * 0.01)
+          expr: slo:demo_app:burn_rate5m > 14.4 and slo:demo_app:burn_rate1h > 14.4
           for: 5m
           labels:
             severity: critical
@@ -63,18 +85,7 @@ spec:
             summary: "🔥 Быстрое сжигание error budget (x14.4)"
             description: "Бюджет горит в 14.4 раза быстрее нормы: ~2% месячного бюджета за час. Реагировать немедленно!"
         - alert: ErrorBudgetBurnSlow
-          expr: |
-            (
-              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[30m]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[30m]))
-            ) > (6 * 0.01)
-            and
-            (
-              sum(rate(http_requests_total{job="demo-app", status=~"5.."}[6h]))
-              /
-              sum(rate(http_requests_total{job="demo-app"}[6h]))
-            ) > (6 * 0.01)
+          expr: slo:demo_app:burn_rate30m > 6 and slo:demo_app:burn_rate6h > 6
           for: 30m
           labels:
             severity: warning
