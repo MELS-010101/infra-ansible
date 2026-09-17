@@ -22,3 +22,4 @@
   kubectl patch prometheus kube-prometheus-stack-prometheus -n monitoring --type=merge -p '{"spec":{"serviceMonitorSelector":{}}}'
 - node-exporter отключён live-патчем DaemonSet (nodeSelector-заглушка; причина: CreateContainerError в WSL). Вернуть: убрать nodeSelector или helm upgrade с nodeExporter.enabled=true
 - helm release kube-prometheus-stack: status=failed (upgrade оборвался по сети). Values для повторного upgrade: helm/helm-values-monitoring.yaml; команда: helm upgrade kube-prometheus-stack kube-prometheus-stack -n monitoring --version 10.1.1 --reuse-values -f helm/helm-values-monitoring.yaml
+- argo-rollouts app: ignoreDifferences на CRD добавлен live-патчем (CRD обновляются осознанно, не через app sync)
