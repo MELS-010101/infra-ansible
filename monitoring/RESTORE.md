@@ -15,3 +15,6 @@
 - Поды demo-app воскрешает Rollout/demo-app: ронять надо сам rollout, а не ReplicaSet.
 - AlertmanagerConfig по умолчанию лишь ДОБАВОК к базовому конфигy (receiver null). Базовым он становится только через spec.alertmanagerConfiguration.name.
 - Экспортированные из кластера yaml НЕЛЬЗЯ коммитить как есть: вырезай status/, metadata.resourceVersion, metadata.uid, metadata.creationTimestamp, иначе apply падает с 'the object has been modified'.
+- Дашборд SLO/Burn: правим monitoring/grafana-slo-burn-dashboard.json, затем регенерируем манифест:
+  kubectl create configmap slo-burn-dashboard -n monitoring --from-file=slo-burn-dashboard.json=monitoring/grafana-slo-burn-dashboard.json --dry-run=client -o yaml | kubectl label --local --dry-run=client -o yaml -f - grafana_dashboard=1 > monitoring/configmap-slo-burn-dashboard.yaml
+  kubectl apply -f monitoring/configmap-slo-burn-dashboard.yaml
