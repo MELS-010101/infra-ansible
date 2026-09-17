@@ -14,3 +14,4 @@
 - up==0 молчит, если поды исчезли совсем (цель пропадает из discovery). Для 'приложение исчезло' нужно absent(up{...}).
 - Поды demo-app воскрешает Rollout/demo-app: ронять надо сам rollout, а не ReplicaSet.
 - AlertmanagerConfig по умолчанию лишь ДОБАВОК к базовому конфигy (receiver null). Базовым он становится только через spec.alertmanagerConfiguration.name.
+- Экспортированные из кластера yaml НЕЛЬЗЯ коммитить как есть: вырезай status/, metadata.resourceVersion, metadata.uid, metadata.creationTimestamp, иначе apply падает с 'the object has been modified'.

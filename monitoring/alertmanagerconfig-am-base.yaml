@@ -7,12 +7,9 @@ metadata:
       else }}✅ \\u003cb\\u003eRESOLVED\\u003c/b\\u003e{{ end }}: {{ .GroupLabels.alertname
       }}\\n{{ range .Alerts }}\\u003cb\\u003e{{ .Annotations.summary }}\\u003c/b\\u003e\\n{{
       .Annotations.description }}\\n{{ end }}\\n\",\"parseMode\":\"HTML\",\"sendResolved\":true}]}],\"route\":{\"groupBy\":[\"alertname\"],\"groupInterval\":\"1m\",\"groupWait\":\"10s\",\"receiver\":\"telegram\",\"repeatInterval\":\"1h\",\"routes\":[{\"matchers\":[{\"matchType\":\"=~\",\"name\":\"alertname\",\"value\":\"Watchdog|InfoInhibitor|KubeSchedulerDown|KubeProxyDown|KubeAPIDown|KubeControllerManagerDown|KubeEtcdDown|KubeStateMetricsDown|NodeExporterDown|AlertmanagerDown|PrometheusDown|TargetDown.*Node.*\"}],\"receiver\":\"null\"}]}}}\n"
-  creationTimestamp: "2026-09-15T10:59:41Z"
   generation: 2
   name: am-base
   namespace: monitoring
-  resourceVersion: "74215"
-  uid: 27e7be34-4a30-49b2-943f-a4f782ab615d
 spec:
   receivers:
   - name: "null"

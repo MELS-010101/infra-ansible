@@ -5,15 +5,12 @@ metadata:
     argocd.argoproj.io/tracking-id: demo-app:monitoring.coreos.com/ServiceMonitor:default/demo-app
     kubectl.kubernetes.io/last-applied-configuration: |
       {"apiVersion":"monitoring.coreos.com/v1","kind":"ServiceMonitor","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"demo-app:monitoring.coreos.com/ServiceMonitor:default/demo-app"},"labels":{"app":"demo-app","release":"monitoring"},"name":"demo-app","namespace":"default"},"spec":{"endpoints":[{"interval":"15s","path":"/metrics","port":"http","relabelings":[{"replacement":"demo-app","sourceLabels":["__meta_kubernetes_service_label_app"],"targetLabel":"job"}]}],"selector":{"matchLabels":{"app":"demo-app"}}}}
-  creationTimestamp: "2026-09-14T08:16:38Z"
   generation: 8
   labels:
     app: demo-app
     release: monitoring
   name: demo-app
   namespace: default
-  resourceVersion: "65139"
-  uid: e44da360-4bd8-4ef5-8d4d-e932401429af
 spec:
   endpoints:
   - interval: 15s
