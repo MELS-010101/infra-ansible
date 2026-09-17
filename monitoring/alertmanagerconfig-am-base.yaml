@@ -28,11 +28,16 @@ spec:
     - alertname
     groupInterval: 1m
     groupWait: 10s
-    receiver: telegram
+    receiver: "null"
     repeatInterval: 1h
     routes:
     - matchers:
+      - matchType: =
+        name: team
+        value: demo
+      receiver: telegram
+    - matchers:
       - matchType: =~
         name: alertname
-        value: Watchdog|InfoInhibitor|KubeSchedulerDown|KubeProxyDown|KubeAPIDown|KubeControllerManagerDown|KubeEtcdDown|KubeStateMetricsDown|NodeExporterDown|AlertmanagerDown|PrometheusDown|TargetDown.*Node.*
-      receiver: "null"
+        value: Alertmanager.*
+      receiver: telegram
