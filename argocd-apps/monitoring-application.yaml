@@ -15,6 +15,17 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  ignoreDifferences:
+    - group: monitoring.coreos.com
+      kind: AlertmanagerConfig
+      jsonPointers:
+        - /metadata/annotations
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      jsonPointers:
+        - /metadata/annotations
+        - /spec/endpoints
+        - /spec/jobLabel
   syncPolicy:
     automated:
       prune: true
