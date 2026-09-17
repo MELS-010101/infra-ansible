@@ -36,8 +36,3 @@ spec:
         name: team
         value: demo
       receiver: telegram
-    - matchers:
-      - matchType: =~
-        name: alertname
-        value: Alertmanager.*
-      receiver: telegram

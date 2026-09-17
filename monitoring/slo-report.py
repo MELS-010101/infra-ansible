@@ -19,6 +19,7 @@ def avail(window):
 
 a24, a7, a30 = avail("24h"), avail("7d"), avail("30d")
 budget = q("slo:demo_app:budget_remaining_percent30d")
+amfail = q('sum(increase(alertmanager_notification_failures_total[24h])) or vector(0)')
 
 url = PROM + "/api/v1/query?" + urllib.parse.urlencode({
     "query": 'count by (alertname)(count_over_time(ALERTS_FOR_STATE{alertname=~"TargetDown|HighErrorRate|SLOBreach|ErrorBudgetBurn.*"}[24h]))'})
@@ -33,8 +34,8 @@ msg = ("<b>📊 Ежедневный SLO-отчёт: demo-app</b>\n"
        "Доступность 24ч: %s\n"
        "Доступность 7д: %s\n"
        "Доступность 30д: %s\n"
-       "Error budget (30д) осталось: %s\n"
-       "Инциденты за 24ч:\n%s" % (fmt(a24), fmt(a7), fmt(a30), fmt(budget), inc_lines))
+       "Error budget (30д) осталось: %s\nСбоев отправки алертов (24ч): %d\n"
+       "Инциденты за 24ч:\n%s" % (fmt(a24), fmt(a7), fmt(a30), fmt(budget), int(amfail or 0), inc_lines))
 
 req = urllib.request.Request(
     "https://api.telegram.org/bot%s/sendMessage" % TOKEN,

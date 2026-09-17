@@ -9,18 +9,20 @@ data:
     status=~\"5..\"}[%s])) or vector(0)' % window)\n    tot = q('sum(increase(http_requests_total{job=\"demo-app\"}[%s]))'
     % window)\n    if tot is None or tot == 0:\n        return None\n    return 100.0
     - (err / tot) * 100.0\n\na24, a7, a30 = avail(\"24h\"), avail(\"7d\"), avail(\"30d\")\nbudget
-    = q(\"slo:demo_app:budget_remaining_percent30d\")\n\nurl = PROM + \"/api/v1/query?\"
-    + urllib.parse.urlencode({\n    \"query\": 'count by (alertname)(count_over_time(ALERTS_FOR_STATE{alertname=~\"TargetDown|HighErrorRate|SLOBreach|ErrorBudgetBurn.*\"}[24h]))'})\nwith
+    = q(\"slo:demo_app:budget_remaining_percent30d\")\namfail = q('sum(increase(alertmanager_notification_failures_total[24h]))
+    or vector(0)')\n\nurl = PROM + \"/api/v1/query?\" + urllib.parse.urlencode({\n
+    \   \"query\": 'count by (alertname)(count_over_time(ALERTS_FOR_STATE{alertname=~\"TargetDown|HighErrorRate|SLOBreach|ErrorBudgetBurn.*\"}[24h]))'})\nwith
     urllib.request.urlopen(url, timeout=30) as r:\n    inc = json.load(r)[\"data\"][\"result\"]\ninc_lines
     = \"\\n\".join(\"  - %s: %d раз(а)\" % (i[\"metric\"][\"alertname\"], int(float(i[\"value\"][1])))
     for i in inc) or \"  - нет\"\n\ndef fmt(v):\n    return \"n/a\" if v is None else
     \"%.3f%%\" % v\n\nmsg = (\"<b>\U0001F4CA Ежедневный SLO-отчёт: demo-app</b>\\n\"\n
     \      \"Доступность 24ч: %s\\n\"\n       \"Доступность 7д: %s\\n\"\n       \"Доступность
-    30д: %s\\n\"\n       \"Error budget (30д) осталось: %s\\n\"\n       \"Инциденты
-    за 24ч:\\n%s\" % (fmt(a24), fmt(a7), fmt(a30), fmt(budget), inc_lines))\n\nreq
-    = urllib.request.Request(\n    \"https://api.telegram.org/bot%s/sendMessage\"
-    % TOKEN,\n    data=urllib.parse.urlencode({\"chat_id\": CHAT, \"text\": msg, \"parse_mode\":
-    \"HTML\"}).encode())\nwith urllib.request.urlopen(req, timeout=30) as r:\n    print(json.load(r))\n"
+    30д: %s\\n\"\n       \"Error budget (30д) осталось: %s\\nСбоев отправки алертов
+    (24ч): %d\\n\"\n       \"Инциденты за 24ч:\\n%s\" % (fmt(a24), fmt(a7), fmt(a30),
+    fmt(budget), int(amfail or 0), inc_lines))\n\nreq = urllib.request.Request(\n
+    \   \"https://api.telegram.org/bot%s/sendMessage\" % TOKEN,\n    data=urllib.parse.urlencode({\"chat_id\":
+    CHAT, \"text\": msg, \"parse_mode\": \"HTML\"}).encode())\nwith urllib.request.urlopen(req,
+    timeout=30) as r:\n    print(json.load(r))\n"
 kind: ConfigMap
 metadata:
   name: slo-report-script
