@@ -18,3 +18,5 @@
 - Дашборд SLO/Burn: правим monitoring/grafana-slo-burn-dashboard.json, затем регенерируем манифест:
   kubectl create configmap slo-burn-dashboard -n monitoring --from-file=slo-burn-dashboard.json=monitoring/grafana-slo-burn-dashboard.json --dry-run=client -o yaml | kubectl label --local --dry-run=client -o yaml -f - grafana_dashboard=1 > monitoring/configmap-slo-burn-dashboard.yaml
   kubectl apply -f monitoring/configmap-slo-burn-dashboard.yaml
+- Prometheus CR patched live: spec.serviceMonitorSelector={} (было release=monitoring). После любого helm upgrade повторить:
+  kubectl patch prometheus kube-prometheus-stack-prometheus -n monitoring --type=merge -p '{"spec":{"serviceMonitorSelector":{}}}'
