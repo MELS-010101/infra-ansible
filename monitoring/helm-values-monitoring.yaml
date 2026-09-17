@@ -1,0 +1,6 @@
+prometheus:
+  prometheusSpec:
+    retention: 35d
+    serviceMonitorSelector: {}
+nodeExporter:
+  enabled: false
