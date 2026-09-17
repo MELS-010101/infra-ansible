@@ -7,7 +7,7 @@ data:
       "tags": ["slo", "burn-rate"],
       "timezone": "browser",
       "schemaVersion": 39,
-      "version": 1,
+      "version": 2,
       "refresh": "30s",
       "time": {"from": "now-6h", "to": "now"},
       "panels": [
@@ -15,7 +15,7 @@ data:
           "id": 1, "type": "stat", "title": "Error Budget Remaining (30d)",
           "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"refId": "A", "instant": true, "expr": "clamp_min((1 - (sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"demo-app\"}[30d]))) / 0.01) * 100, 0)"}],
+          "targets": [{"refId": "A", "instant": true, "expr": "clamp_min((1 - ((sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_requests_total{job=\"demo-app\"}[30d]))) / 0.01) * 100, 0)"}],
           "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 20}, {"color": "green", "value": 50}]}}, "overrides": []},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
         },
@@ -23,7 +23,7 @@ data:
           "id": 2, "type": "stat", "title": "Availability (30d)",
           "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"refId": "A", "instant": true, "expr": "100 - (sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"demo-app\"}[30d])) * 100)"}],
+          "targets": [{"refId": "A", "instant": true, "expr": "100 - ((sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_requests_total{job=\"demo-app\"}[30d])) * 100)"}],
           "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 99}, {"color": "green", "value": 99.9}]}}, "overrides": []},
           "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
         },
@@ -31,15 +31,15 @@ data:
           "id": 3, "type": "timeseries", "title": "Burn rate (5m window, xN)",
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"refId": "A", "expr": "(sum(rate(http_requests_total{job=\"demo-app\", status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"demo-app\"}[5m]))) / 0.01", "legendFormat": "burn rate x"}],
-          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "targets": [{"refId": "A", "expr": "((sum(rate(http_requests_total{job=\"demo-app\", status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"demo-app\"}[5m]))) / 0.01", "legendFormat": "burn rate x"}],
+          "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
           "options": {}
         },
         {
           "id": 4, "type": "timeseries", "title": "Error budget spent (30d window, %)",
           "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
           "datasource": {"type": "prometheus", "uid": "prometheus"},
-          "targets": [{"refId": "A", "expr": "(sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) / sum(increase(http_requests_total{job=\"demo-app\"}[30d])) / 0.01) * 100", "legendFormat": "budget spent %"}],
+          "targets": [{"refId": "A", "expr": "((sum(increase(http_requests_total{job=\"demo-app\", status=~\"5..\"}[30d])) or vector(0)) / sum(increase(http_requests_total{job=\"demo-app\"}[30d])) / 0.01) * 100", "legendFormat": "budget spent %"}],
           "fieldConfig": {"defaults": {"unit": "percent", "min": 0}, "overrides": []},
           "options": {}
         }
