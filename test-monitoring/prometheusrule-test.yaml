@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: argocd-sync-test
+  namespace: test-monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: argocd-test
+      rules:
+        - alert: ArgoCDSyncTest
+          expr: vector(1) > 0
+          for: 10s
+          labels:
+            severity: info
+          annotations:
+            summary: "ArgoCD sync test"

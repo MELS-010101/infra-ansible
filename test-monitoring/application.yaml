@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: test-monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MELS-010101/infra-ansible.git
+    targetRevision: main
+    path: test-monitoring
+    directory:
+      recurse: false
+      exclude: 'application.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: test-monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - PruneLast=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
