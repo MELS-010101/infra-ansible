@@ -96,6 +96,51 @@ Inhibit: TargetDown глушит HighErrorRate/SLOBreach того же team.
     kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3001:80
     kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9096:9090
 
+
+## Автозапуск Grafana (systemd)
+
+Вместо ручного `kubectl port-forward` при каждой сессии — создаём systemd-сервис,
+который автоматически поднимает туннель при старте WSL.
+
+### Одноразовая настройка
+
+    sudo tee /etc/systemd/system/grafana-tunnel.service > /dev/null <<'EOF'
+    [Unit]
+    Description=Port-forward Grafana 3001:80
+    After=network.target
+
+    [Service]
+    Type=simple
+    User=root
+    Environment=KUBECONFIG=/root/.kube/config
+    Environment=HOME=/root
+    ExecStart=/usr/local/bin/kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3001:80
+    Restart=always
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+    EOF
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable grafana-tunnel.service
+    sudo systemctl start grafana-tunnel.service
+
+### Управление
+
+    grafana-start    # запустить туннель
+    grafana-stop     # остановить
+    grafana-status   # посмотреть статус
+
+### Проверка
+
+После перезапуска WSL (`wsl --shutdown` в PowerShell) порт 3001 должен слушаться
+автоматически: `ss -tln | grep 3001`.
+
+Для Prometheus (порт 9096) создать аналогичный сервис `prometheus-tunnel.service`,
+заменив имя и порт.
+
+
 ## Инциденты и уроки
 
 Полный журнал: monitoring/RESTORE.md. Ключевые:
