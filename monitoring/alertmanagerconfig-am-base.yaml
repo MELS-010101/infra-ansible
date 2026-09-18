@@ -36,3 +36,14 @@ spec:
         name: team
         value: demo
       receiver: telegram
+  inhibitRules:
+  - sourceMatch:
+    - name: alertname
+      value: TargetDown
+      matchType: "="
+    targetMatch:
+    - name: alertname
+      value: HighErrorRate|SLOBreach
+      matchType: =~
+    equal:
+    - team

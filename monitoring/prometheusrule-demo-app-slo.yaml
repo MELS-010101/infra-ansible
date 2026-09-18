@@ -61,6 +61,7 @@ spec:
           annotations:
             summary: "🚨 Высокий error rate в demo-app"
             description: "5xx ошибок больше 1% уже 2 минуты. Текущее значение: {{ $value | humanizePercentage }}"
+            runbook_url: "https://raw.githubusercontent.com/MELS-010101/infra-ansible/main/monitoring/runbooks/high-error-rate.md"
         - alert: SLOBreach
           expr: (1 - slo:demo_app:error_ratio1h) * 100 < 99
           for: 5m
@@ -70,6 +71,7 @@ spec:
           annotations:
             summary: "💔 SLO пробит в demo-app"
             description: "Доступность за последний час ниже 99%. Текущее значение: {{ $value | humanize }}%"
+            runbook_url: "https://raw.githubusercontent.com/MELS-010101/infra-ansible/main/monitoring/runbooks/slo-breach.md"
         - alert: TargetDown
           expr: absent(up{job="demo-app"})
           for: 10s
@@ -94,6 +96,7 @@ spec:
           annotations:
             summary: "🔥 Быстрое сжигание error budget (x14.4)"
             description: "Бюджет горит в 14.4 раза быстрее нормы: ~2% месячного бюджета за час. Реагировать немедленно!"
+            runbook_url: "https://raw.githubusercontent.com/MELS-010101/infra-ansible/main/monitoring/runbooks/burn-fast.md"
         - alert: ErrorBudgetBurnSlow
           expr: slo:demo_app:burn_rate30m > 6 and slo:demo_app:burn_rate6h > 6
           for: 30m
@@ -103,3 +106,4 @@ spec:
           annotations:
             summary: "🐢 Медленное сжигание error budget (x6)"
             description: "Бюджет горит в 6 раз быстрее нормы: ~5% бюджета за сутки. Разобраться в рабочее время."
+            runbook_url: "https://raw.githubusercontent.com/MELS-010101/infra-ansible/main/monitoring/runbooks/burn-slow.md"

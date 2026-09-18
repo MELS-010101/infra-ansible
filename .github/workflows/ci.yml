@@ -103,3 +103,11 @@ jobs:
           git diff --cached --quiet && echo "no change, skip" && exit 0
           git commit -m "ci: bump demo-app image tag to ${GITHUB_SHA::7} [skip ci]"
           git push
+  promtool-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check rules
+        run: |
+          curl -sL https://github.com/prometheus/prometheus/releases/download/v2.53.0/prometheus-2.53.0.linux-amd64.tar.gz | tar xz
+          ./prometheus-2.53.0.linux-amd64/promtool check rules monitoring/prometheusrule-demo-app-slo.yaml
