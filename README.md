@@ -128,9 +128,15 @@ Inhibit: TargetDown глушит HighErrorRate/SLOBreach того же team.
 
 ### Управление
 
-    grafana-start    # запустить туннель
-    grafana-stop     # остановить
-    grafana-status   # посмотреть статус
+    sudo systemctl start grafana-tunnel     # запустить
+    sudo systemctl stop grafana-tunnel      # остановить
+    sudo systemctl status grafana-tunnel    # статус
+
+Опционально алиасы в ~/.bashrc:
+
+    alias grafana-start="sudo systemctl start grafana-tunnel"
+    alias grafana-stop="sudo systemctl stop grafana-tunnel"
+    alias grafana-status="sudo systemctl status grafana-tunnel --no-pager"
 
 ### Проверка
 
