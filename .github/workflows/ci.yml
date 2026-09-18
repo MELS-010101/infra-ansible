@@ -102,6 +102,7 @@ jobs:
           git add charts/demo-app/values.yaml
           git diff --cached --quiet && echo "no change, skip" && exit 0
           git commit -m "ci: bump demo-app image tag to ${GITHUB_SHA::7} [skip ci]"
+          git pull --rebase origin main
           git push
   promtool-check:
     runs-on: ubuntu-latest
@@ -110,4 +111,5 @@ jobs:
       - name: promtool check rules
         run: |
           curl -sL https://github.com/prometheus/prometheus/releases/download/v2.53.0/prometheus-2.53.0.linux-amd64.tar.gz | tar xz
-          ./prometheus-2.53.0.linux-amd64/promtool check rules monitoring/prometheusrule-demo-app-slo.yaml
+          python3 -c "import yaml; d=yaml.safe_load(open('monitoring/prometheusrule-demo-app-slo.yaml')); yaml.safe_dump({'groups': d['spec']['groups']}, open('/tmp/rules.yaml','w'), allow_unicode=True)"
+          ./prometheus-2.53.0.linux-amd64/promtool check rules /tmp/rules.yaml
