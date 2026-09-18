@@ -27,3 +27,4 @@
 **Причина:** Транзитный сбой health-check (99 неудачных проверок за 3 часа)
 **Решение:** `kubectl rollout restart deployment/argocd-repo-server -n argocd`
 **Профилактика:** При повторении — увеличить `livenessProbe.timeoutSeconds` в helm values
+- Курсный локальный стек (Grafana:3000, Prometheus:9090) снесён как неиспользуемый. Единственный UI мониторинга: кластерная Grafana через port-forward 3001 (kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3001:80)
