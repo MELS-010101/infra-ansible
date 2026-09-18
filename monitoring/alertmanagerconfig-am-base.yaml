@@ -32,7 +32,7 @@ spec:
     repeatInterval: 1h
     routes:
     - matchers:
-      - matchType: =
+      - matchType: "="
         name: team
         value: demo
       receiver: telegram
